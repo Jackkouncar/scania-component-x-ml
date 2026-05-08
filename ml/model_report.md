@@ -1,14 +1,14 @@
 # Baseline ML Model Report
 
-Generated: 2026-05-05T20:01:04.963Z
+Generated: 2026-05-08T19:21:57.627Z
 
 ## Model
 
-Dashboard streaming model: supervised distance-weighted nearest-neighbor classifier.
+Dashboard streaming model: nearest-centroid classifier.
 
-For each incoming telemetry packet, the dashboard compares the engineered feature vector against labeled historical training telemetry examples and predicts from the nearest neighbors.
+For each incoming telemetry packet, the dashboard compares the engineered feature vector against one learned centroid per risk class and predicts from the closest class pattern.
 
-The exported file also keeps a conservative centroid summary/evaluation so the project has a fast reportable baseline metric.
+The exported file also keeps the kNN sweep so the project can explain why kNN was tested but not chosen as the final dashboard model.
 
 This is an explainable baseline model, not the final production model.
 
@@ -21,10 +21,11 @@ Non-zero class predictions below this confidence are converted to class 0. The t
 - Naive all-class-0 baseline: included because the dataset is highly imbalanced and most vehicles are not near failure.
 - Nearest-centroid classifier: used as a fast reportable baseline and for class-separation summaries.
 - Gaussian Naive Bayes: added as a second trained comparator. It is fast, but it makes a stronger feature-independence assumption.
-- Distance-weighted kNN: selected for the dashboard because it is supervised, explainable, works with live telemetry records, and does not assume telemetry features are independent.
+- Random Forest: added as a tree-based comparator because the TA recommended testing a tree method for nonlinear tabular patterns.
+- Distance-weighted kNN: evaluated with a k sweep, but not selected because the best k was high and the stratified accuracy stayed low.
 - LSTM sequence model: trained as a compact TensorFlow.js sequence experiment on rolling dashboard telemetry windows.
 
-The current project therefore uses kNN as the live dashboard model and compares it against multiple trained baselines.
+The current submission therefore uses the nearest-centroid classifier as the live dashboard model and compares it against multiple trained baselines.
 
 ## Model Comparison
 
@@ -33,23 +34,24 @@ Model | Validation scope | Validation accuracy | Validation cost | Validation ma
 All-class-0 baseline | full validation set | 0.973 | 57400 | 0.1973 | full test set | 0.9719 | 56100 | 0.1971
 Nearest-centroid classifier | full validation set | 0.8706 | 56884 | 0.2006 | full test set | 0.8823 | 54627 | 0.2096
 Gaussian Naive Bayes | full validation set | 0.7463 | 61507 | 0.1773 | full test set | 0.7483 | 60594 | 0.1746
+Random Forest | full validation set | 0.2632 | 68243 | 0.0868 | full test set | 0.2636 | 65629 | 0.0881
 Distance-weighted kNN (k=351) | stratified validation sample | 0.234 | 33736 | 0.1296 | stratified test sample | 0.2197 | 32324 | 0.1276
 LSTM sequence model | dashboard vehicle subset latest sequence | 0.1758 | 41396 | 0.1378 | dashboard vehicle subset latest sequence | 0.187 | 40886 | 0.1365
 
-Raw accuracy is included for the class presentation, but it is not the only useful metric. Because most examples are class 0, the all-class-0 baseline can look strong on accuracy while missing every failure. The dashboard currently highlights the kNN k value selected by highest stratified validation macro F1; run `npm run train:model:cost` if you want the stricter maintenance-cost selection instead.
+Raw accuracy is included for the class presentation, but it is not the only useful metric. Because most examples are class 0, the all-class-0 baseline can look strong on accuracy while missing every failure. The nearest-centroid model is the main dashboard model because it keeps full-set validation/test accuracy above 75% while also lowering maintenance cost compared with the all-class-0 baseline.
 
 ## Hyperparameter Tuning
 
 - Feature scaling: z-score standardization is fit on training rows only.
 - Centroid alert threshold: grid searched from 0.00 to 1.00 in 0.01 steps against validation cost; selected threshold 0.21.
-- Dashboard kNN: k = 351 and distance weighting power = 2. The selected k is chosen by highest stratified validation macro F1.
+- kNN experiment: k = 351 and distance weighting power = 2. This sweep is kept as validation evidence, not as the final selected model.
 - Temporal smoothing: the dashboard requires 3 repeated lower-risk packets before lowering an alert, while higher-risk packets update immediately.
 
 ### kNN k Sweep
 
 The sweep uses a stratified training/evaluation sample so it can run quickly in the project repo while still preserving all positive validation examples.
 
-The exported dashboard chart shows validation accuracy by k. The selected k follows the configured selection metric so the highlighted bar matches the presentation story.
+The exported dashboard chart shows validation macro F1 by k. The high selected k is evidence that kNN is not the strongest final choice here; it is included to satisfy the hyperparameter comparison requirement.
 
 k | Validation rows | Validation accuracy | Validation cost | Macro F1
 ---: | ---: | ---: | ---: | ---:

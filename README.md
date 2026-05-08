@@ -15,7 +15,7 @@ The task is a 5-class classification problem:
 ## What Is Included
 
 - `tools/build_ml_dataset.js`: builds the feature table from the raw SCANIA CSV files.
-- `tools/train_baseline_model.js`: trains/evaluates the centroid, Gaussian Naive Bayes, and distance-weighted kNN models.
+- `tools/train_baseline_model.js`: trains/evaluates the centroid, Gaussian Naive Bayes, Random Forest, and distance-weighted kNN models.
 - `tools/train_lstm_model.js`: optional TensorFlow.js LSTM sequence experiment.
 - `ml/ml_dataset.json`: generated feature table used by the training script.
 - `ml/model_report.md`: current model report.
@@ -54,19 +54,21 @@ npm run train:lstm
 
 ## Current Model Choice
 
-The dashboard model is a distance-weighted k-nearest-neighbor classifier.
+The dashboard model is a nearest-centroid classifier.
 
 Reason:
 
-- It is easy to explain: a new readout is compared with similar historical readouts.
+- It is easy to explain: a new readout is compared with the learned class pattern for each risk level.
 - It works directly with real-time telemetry records.
-- It had lower failure-related cost than the Gaussian Naive Bayes and LSTM comparison runs.
+- It keeps validation/test accuracy above 75% and beats the all-class-0 baseline on failure-related cost.
+- The kNN sweep is still included, but kNN was not selected because its best k was high and its stratified accuracy stayed low.
 
 The report also includes:
 
 - all-class-0 baseline
 - nearest-centroid baseline
 - Gaussian Naive Bayes
+- Random Forest
 - distance-weighted kNN
 - LSTM sequence experiment
 

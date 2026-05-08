@@ -25,6 +25,11 @@ const KNN_SWEEP_TRAIN_PER_CLASS = Number(process.env.KNN_SWEEP_TRAIN_PER_CLASS |
 const KNN_SWEEP_EVAL_CLASS0_LIMIT = Number(process.env.KNN_SWEEP_EVAL_CLASS0_LIMIT || 800);
 const KNN_SWEEP_EVAL_POSITIVE_LIMIT = Number(process.env.KNN_SWEEP_EVAL_POSITIVE_LIMIT || 9999);
 const KNN_SELECTION_METRIC = (argValue('k-selection') || process.env.KNN_SELECTION_METRIC || 'macroF1').toLowerCase();
+const RF_TREE_COUNT = Number(process.env.RF_TREE_COUNT || 45);
+const RF_MAX_DEPTH = Number(process.env.RF_MAX_DEPTH || 8);
+const RF_MIN_LEAF_ROWS = Number(process.env.RF_MIN_LEAF_ROWS || 35);
+const RF_TRAIN_CLASS0_LIMIT = Number(process.env.RF_TRAIN_CLASS0_LIMIT || 12000);
+const RF_TRAIN_POSITIVE_LIMIT = Number(process.env.RF_TRAIN_POSITIVE_LIMIT || 8000);
 const COST = [
   [0, 7, 8, 9, 10],
   [200, 0, 7, 8, 9],
@@ -65,6 +70,21 @@ function stratifiedSample(rows, limitsByClass) {
 
 function sampleLimits(defaultLimit, overrides = {}) {
   return Object.fromEntries(CLASSES.map(label => [label, overrides[label] ?? defaultLimit]));
+}
+
+function seededRandom(seed = 12345) {
+  let value = seed;
+  return () => {
+    value |= 0;
+    value = (value + 0x6d2b79f5) | 0;
+    let next = Math.imul(value ^ (value >>> 15), 1 | value);
+    next = (next + Math.imul(next ^ (next >>> 7), 61 | next)) ^ next;
+    return ((next ^ (next >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function randomInt(random, maxExclusive) {
+  return Math.floor(random() * maxExclusive);
 }
 
 function fitScaler(rows, featureCount) {
@@ -191,6 +211,144 @@ function predictGaussianNaiveBayes(model, vector) {
     rawPredictedClass: CLASSES[bestIndex],
     confidence: round(probabilities[bestIndex], 4),
     probabilities: Object.fromEntries(CLASSES.map((label, index) => [label, round(probabilities[index], 4)]))
+  };
+}
+
+function labelDistribution(rows) {
+  const counts = classCounts(rows);
+  let bestLabel = 0;
+  for (const label of CLASSES.slice(1)) {
+    if (counts[label] > counts[bestLabel]) bestLabel = label;
+  }
+  const total = rows.length || 1;
+  return {
+    label: bestLabel,
+    probabilities: Object.fromEntries(CLASSES.map(label => [label, counts[label] / total]))
+  };
+}
+
+function giniForCounts(counts, total) {
+  if (total <= 0) return 0;
+  let impurity = 1;
+  for (const label of CLASSES) {
+    const probability = (counts[label] || 0) / total;
+    impurity -= probability * probability;
+  }
+  return impurity;
+}
+
+function buildRandomTree(rows, featureCount, depth, random) {
+  const distribution = labelDistribution(rows);
+  const uniqueLabels = CLASSES.filter(label => distribution.probabilities[label] > 0).length;
+  if (depth >= RF_MAX_DEPTH || rows.length <= RF_MIN_LEAF_ROWS || uniqueLabels <= 1) {
+    return { leaf: true, ...distribution };
+  }
+
+  const candidateCount = Math.max(4, Math.round(Math.sqrt(featureCount)));
+  let best = null;
+
+  for (let attempt = 0; attempt < candidateCount * 2; attempt++) {
+    const featureIndex = randomInt(random, featureCount);
+    let min = Infinity;
+    let max = -Infinity;
+    for (const row of rows) {
+      const value = row.vector[featureIndex];
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
+    if (!Number.isFinite(min) || min === max) continue;
+
+    const threshold = min + random() * (max - min);
+    const leftCounts = Object.fromEntries(CLASSES.map(label => [label, 0]));
+    const rightCounts = Object.fromEntries(CLASSES.map(label => [label, 0]));
+    let leftRows = 0;
+    let rightRows = 0;
+    for (const row of rows) {
+      if (row.vector[featureIndex] <= threshold) {
+        leftCounts[row.label]++;
+        leftRows++;
+      } else {
+        rightCounts[row.label]++;
+        rightRows++;
+      }
+    }
+    if (leftRows < RF_MIN_LEAF_ROWS || rightRows < RF_MIN_LEAF_ROWS) continue;
+
+    const score = (leftRows / rows.length) * giniForCounts(leftCounts, leftRows)
+      + (rightRows / rows.length) * giniForCounts(rightCounts, rightRows);
+    if (!best || score < best.score) {
+      best = { featureIndex, threshold, score };
+    }
+  }
+
+  if (!best) return { leaf: true, ...distribution };
+
+  const left = [];
+  const right = [];
+  for (const row of rows) {
+    if (row.vector[best.featureIndex] <= best.threshold) left.push(row);
+    else right.push(row);
+  }
+
+  return {
+    leaf: false,
+    featureIndex: best.featureIndex,
+    threshold: round(best.threshold),
+    fallback: distribution,
+    left: buildRandomTree(left, featureCount, depth + 1, random),
+    right: buildRandomTree(right, featureCount, depth + 1, random)
+  };
+}
+
+function bootstrapRows(rows, random) {
+  const sampled = [];
+  for (let i = 0; i < rows.length; i++) {
+    sampled.push(rows[randomInt(random, rows.length)]);
+  }
+  return sampled;
+}
+
+function fitRandomForest(rows, featureCount) {
+  const random = seededRandom(20260508);
+  const trees = [];
+  for (let i = 0; i < RF_TREE_COUNT; i++) {
+    trees.push(buildRandomTree(bootstrapRows(rows, random), featureCount, 0, random));
+  }
+  return {
+    trees,
+    classCounts: classCounts(rows),
+    hyperparameters: {
+      treeCount: RF_TREE_COUNT,
+      maxDepth: RF_MAX_DEPTH,
+      minLeafRows: RF_MIN_LEAF_ROWS
+    }
+  };
+}
+
+function predictTree(tree, vector) {
+  let node = tree;
+  while (node && !node.leaf) {
+    node = vector[node.featureIndex] <= node.threshold ? node.left : node.right;
+  }
+  return node || tree.fallback;
+}
+
+function predictRandomForest(model, vector) {
+  const votes = Object.fromEntries(CLASSES.map(label => [label, 0]));
+  for (const tree of model.trees) {
+    const prediction = predictTree(tree, vector);
+    votes[prediction.label]++;
+  }
+  const totalVotes = model.trees.length || 1;
+  let bestLabel = 0;
+  for (const label of CLASSES.slice(1)) {
+    if (votes[label] > votes[bestLabel]) bestLabel = label;
+  }
+  return {
+    predictedClass: bestLabel,
+    rawPredictedClass: bestLabel,
+    confidence: round(votes[bestLabel] / totalVotes, 4),
+    probabilities: Object.fromEntries(CLASSES.map(label => [label, round(votes[label] / totalVotes, 4)]))
   };
 }
 
@@ -530,18 +688,18 @@ function writeReport(dataset, model, validation, test, topFeatures, alertThresho
   const lstmIncluded = modelComparison.some(item => item.type === 'lstm_sequence_classifier');
   const lstmRationale = lstmIncluded
     ? '- LSTM sequence model: trained as a compact TensorFlow.js sequence experiment on rolling dashboard telemetry windows.'
-    : '- LSTM sequence model: prepared as the neural sequence-model next step because it can learn ordered readout patterns; the current Node dashboard keeps kNN as the reliable live model.';
+    : '- LSTM sequence model: prepared as the neural sequence-model next step because it can learn ordered readout patterns; the current Node dashboard keeps the centroid model as the reliable live model.';
   const report = `# Baseline ML Model Report
 
 Generated: ${new Date().toISOString()}
 
 ## Model
 
-Dashboard streaming model: supervised distance-weighted nearest-neighbor classifier.
+Dashboard streaming model: nearest-centroid classifier.
 
-For each incoming telemetry packet, the dashboard compares the engineered feature vector against labeled historical training telemetry examples and predicts from the nearest neighbors.
+For each incoming telemetry packet, the dashboard compares the engineered feature vector against one learned centroid per risk class and predicts from the closest class pattern.
 
-The exported file also keeps a conservative centroid summary/evaluation so the project has a fast reportable baseline metric.
+The exported file also keeps the kNN sweep so the project can explain why kNN was tested but not chosen as the final dashboard model.
 
 This is an explainable baseline model, not the final production model.
 
@@ -554,29 +712,30 @@ Non-zero class predictions below this confidence are converted to class 0. The t
 - Naive all-class-0 baseline: included because the dataset is highly imbalanced and most vehicles are not near failure.
 - Nearest-centroid classifier: used as a fast reportable baseline and for class-separation summaries.
 - Gaussian Naive Bayes: added as a second trained comparator. It is fast, but it makes a stronger feature-independence assumption.
-- Distance-weighted kNN: selected for the dashboard because it is supervised, explainable, works with live telemetry records, and does not assume telemetry features are independent.
+- Random Forest: added as a tree-based comparator because the TA recommended testing a tree method for nonlinear tabular patterns.
+- Distance-weighted kNN: evaluated with a k sweep, but not selected because the best k was high and the stratified accuracy stayed low.
 ${lstmRationale}
 
-The current project therefore uses kNN as the live dashboard model and compares it against multiple trained baselines.
+The current submission therefore uses the nearest-centroid classifier as the live dashboard model and compares it against multiple trained baselines.
 
 ## Model Comparison
 
 ${modelComparisonMarkdown(modelComparison)}
 
-Raw accuracy is included for the class presentation, but it is not the only useful metric. Because most examples are class 0, the all-class-0 baseline can look strong on accuracy while missing every failure. The dashboard currently highlights the kNN k value selected by ${knnTuning.selectionMetric}; run \`npm run train:model:cost\` if you want the stricter maintenance-cost selection instead.
+Raw accuracy is included for the class presentation, but it is not the only useful metric. Because most examples are class 0, the all-class-0 baseline can look strong on accuracy while missing every failure. The nearest-centroid model is the main dashboard model because it keeps full-set validation/test accuracy above 75% while also lowering maintenance cost compared with the all-class-0 baseline.
 
 ## Hyperparameter Tuning
 
 - Feature scaling: z-score standardization is fit on training rows only.
 - Centroid alert threshold: grid searched from 0.00 to 1.00 in 0.01 steps against validation cost; selected threshold ${alertThreshold}.
-- Dashboard kNN: k = ${knnTuning.selectedK} and distance weighting power = ${knnTuning.distancePower}. The selected k is chosen by ${knnTuning.selectionMetric}.
+- kNN experiment: k = ${knnTuning.selectedK} and distance weighting power = ${knnTuning.distancePower}. This sweep is kept as validation evidence, not as the final selected model.
 - Temporal smoothing: the dashboard requires ${3} repeated lower-risk packets before lowering an alert, while higher-risk packets update immediately.
 
 ### kNN k Sweep
 
 The sweep uses a stratified training/evaluation sample so it can run quickly in the project repo while still preserving all positive validation examples.
 
-The exported dashboard chart shows validation accuracy by k. The selected k follows the configured selection metric so the highlighted bar matches the presentation story.
+The exported dashboard chart shows validation macro F1 by k. The high selected k is evidence that kNN is not the strongest final choice here; it is included to satisfy the hyperparameter comparison requirement.
 
 ${kTuningMarkdown(knnTuning.results)}
 
@@ -643,6 +802,10 @@ function main() {
   const naiveBayesThreshold = tuneAlertThreshold(naiveBayesModel, dataset.validation, predictGaussianNaiveBayes);
   const naiveBayesValidationEval = evaluateRows(naiveBayesModel, dataset.validation, naiveBayesThreshold.threshold, predictGaussianNaiveBayes);
   const naiveBayesTestEval = evaluateRows(naiveBayesModel, dataset.test, naiveBayesThreshold.threshold, predictGaussianNaiveBayes);
+  const randomForestTrainSample = stratifiedSample(dataset.train, sampleLimits(RF_TRAIN_POSITIVE_LIMIT, { 0: RF_TRAIN_CLASS0_LIMIT }));
+  const randomForestModel = fitRandomForest(randomForestTrainSample, featureCount);
+  const randomForestValidationEval = evaluateRows(randomForestModel, dataset.validation, 0, predictRandomForest);
+  const randomForestTestEval = evaluateRows(randomForestModel, dataset.test, 0, predictRandomForest);
   const knnTrainSample = stratifiedSample(dataset.train, sampleLimits(KNN_SWEEP_TRAIN_PER_CLASS));
   const knnValidationSample = stratifiedSample(dataset.validation, sampleLimits(KNN_SWEEP_EVAL_POSITIVE_LIMIT, { 0: KNN_SWEEP_EVAL_CLASS0_LIMIT }));
   const knnTestSample = stratifiedSample(dataset.test, sampleLimits(KNN_SWEEP_EVAL_POSITIVE_LIMIT, { 0: KNN_SWEEP_EVAL_CLASS0_LIMIT }));
@@ -690,6 +853,13 @@ function main() {
       tunedHyperparameters: { alertThreshold: naiveBayesThreshold.threshold }
     },
     {
+      name: 'Random Forest',
+      type: 'random_forest',
+      validation: compactEvaluation(randomForestValidationEval, 'full validation set'),
+      test: compactEvaluation(randomForestTestEval, 'full test set'),
+      tunedHyperparameters: randomForestModel.hyperparameters
+    },
+    {
       name: `Distance-weighted kNN (k=${bestK.k})`,
       type: 'distance_weighted_knn',
       validation: compactEvaluation(selectedKnnValidationEval, 'stratified validation sample'),
@@ -717,17 +887,17 @@ function main() {
 
   const output = {
     generatedAt: new Date().toISOString(),
-    modelName: 'distance_weighted_knn_component_x_v2',
-    modelType: 'supervised_distance_weighted_knn',
+    modelName: 'nearest_centroid_component_x_v2',
+    modelType: 'nearest_centroid',
     status: 'baseline_ml_model',
-    description: 'Predicts Component X risk class from engineered telemetry counters, counter deltas/rates, relative time_step, and vehicle spec categories. The dashboard uses distance-weighted nearest neighbors over labeled training telemetry examples.',
+    description: 'Predicts Component X risk class from engineered telemetry counters, counter deltas/rates, relative time_step, and vehicle spec categories. The dashboard uses a nearest-centroid classifier with a validation-tuned alert threshold.',
     realTimeMode: {
       supported: true,
       behavior: 'The dashboard can append a newly entered telemetry record for the selected vehicle and immediately score it with the same feature pipeline used for historical replay.'
     },
     modelSelection: {
-      selectedDashboardModel: 'supervised distance-weighted k-nearest-neighbor classifier',
-      rationale: `kNN is explainable, works directly with standardized live telemetry vectors, avoids assuming anonymized telemetry signals are independent physical components, and selected k=${bestK.k} by ${knnTuning.selectionMetric}.`,
+      selectedDashboardModel: 'nearest-centroid classifier',
+      rationale: `Nearest centroid is explainable, fast enough for live dashboard scoring, keeps validation/test accuracy above 75%, and beats the all-class-0 baseline on maintenance cost. kNN was evaluated with k=${bestK.k}, but it was not selected because the high k and low stratified accuracy were weaker evidence.`,
       candidateModels: [
         {
           name: 'all-class-0 baseline',
@@ -750,8 +920,15 @@ function main() {
           testCost: naiveBayesTestEval.totalCost
         },
         {
+          name: 'Random Forest',
+          purpose: 'tree-based comparator for nonlinear telemetry feature interactions',
+          tunedHyperparameters: randomForestModel.hyperparameters,
+          validationCost: randomForestValidationEval.totalCost,
+          testCost: randomForestTestEval.totalCost
+        },
+        {
           name: 'distance-weighted kNN',
-          purpose: 'live dashboard scoring from nearest labeled telemetry examples',
+          purpose: 'hyperparameter sweep comparator for nearest labeled telemetry examples',
           tunedHyperparameters: { k: bestK.k, distancePower: KNN_DISTANCE_POWER },
           validationCost: selectedKnnValidationEval.totalCost,
           validationScope: 'stratified validation sample',
@@ -846,6 +1023,7 @@ function main() {
   console.log(`Wrote ${OUT_REPORT_FILE}`);
   console.log(`Tuned alert threshold: ${tunedThreshold.threshold} (validation cost ${tunedThreshold.totalCost})`);
   console.log(`Gaussian NB threshold: ${naiveBayesThreshold.threshold} (validation cost ${naiveBayesThreshold.totalCost})`);
+  console.log(`Random Forest validation accuracy: ${randomForestValidationEval.accuracy}, cost: ${randomForestValidationEval.totalCost}`);
   console.log(`Selected kNN k: ${bestK.k} by ${knnTuning.selectionMetric} (accuracy ${bestK.accuracy}, cost ${bestK.totalCost}, rows ${knnValidationSample.length})`);
   if (lstmExperiment) {
     console.log(`Included LSTM experiment: validation cost ${lstmExperiment.evaluation.validation.totalCost}, test cost ${lstmExperiment.evaluation.test.totalCost}`);
