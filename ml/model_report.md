@@ -24,7 +24,7 @@ Non-zero class predictions below this confidence are converted to class 0. The t
 - Distance-weighted kNN: selected for the dashboard because it is supervised, explainable, works with live telemetry records, and does not assume telemetry features are independent.
 - LSTM sequence model: trained as a compact TensorFlow.js sequence experiment on rolling dashboard telemetry windows.
 
-The current submission therefore uses kNN as the live dashboard model and compares it against multiple trained baselines.
+The current project therefore uses kNN as the live dashboard model and compares it against multiple trained baselines.
 
 ## Model Comparison
 
