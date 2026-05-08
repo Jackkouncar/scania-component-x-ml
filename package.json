@@ -1,0 +1,17 @@
+{
+  "name": "scania-component-x-ml",
+  "version": "1.0.0",
+  "private": false,
+  "description": "Machine learning code for SCANIA Component X predictive maintenance classification.",
+  "scripts": {
+    "build:ml-data": "node tools/build_ml_dataset.js",
+    "train:model": "node tools/train_baseline_model.js",
+    "train:model:accuracy": "node tools/train_baseline_model.js --k-selection=accuracy",
+    "train:model:cost": "node tools/train_baseline_model.js --k-selection=cost",
+    "train:lstm": "node tools/train_lstm_model.js",
+    "train:lstm:deep": "node tools/train_lstm_model.js --preset=deep"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0"
+  }
+}

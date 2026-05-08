@@ -1,0 +1,11 @@
+node_modules/
+npm-debug.log*
+
+# Raw SCANIA source files are large and should be supplied separately.
+2024-34-2/
+2024-34-2.zip
+
+# Local OS/editor files
+.DS_Store
+Thumbs.db
+.env
