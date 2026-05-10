@@ -1,6 +1,6 @@
 # Baseline ML Model Report
 
-Generated: 2026-05-08T19:21:57.627Z
+Generated: 2026-05-10T23:47:23.611Z
 
 ## Model
 
@@ -22,36 +22,46 @@ Non-zero class predictions below this confidence are converted to class 0. The t
 - Nearest-centroid classifier: used as a fast reportable baseline and for class-separation summaries.
 - Gaussian Naive Bayes: added as a second trained comparator. It is fast, but it makes a stronger feature-independence assumption.
 - Random Forest: added as a tree-based comparator because the TA recommended testing a tree method for nonlinear tabular patterns.
+- Logistic Regression and LightGBM: added as Python tabular comparators with regularization and full validation/test scoring.
 - Distance-weighted kNN: evaluated with a k sweep, but not selected because the best k was high and the stratified accuracy stayed low.
-- LSTM sequence model: trained as a compact TensorFlow.js sequence experiment on rolling dashboard telemetry windows.
+- LSTM sequence model: trained as a compact TensorFlow.js sequence experiment, but listed separately because its current exported scope is not the complete validation/test set.
 
-The current submission therefore uses the nearest-centroid classifier as the live dashboard model and compares it against multiple trained baselines.
+The current submission keeps nearest-centroid as the browser-live model and uses the fair full-set table to choose the best trained tabular model. Current recommended model by validation rule: LightGBM regularized.
 
 ## Model Comparison
 
-Model | Validation scope | Validation accuracy | Validation cost | Validation macro F1 | Test scope | Test accuracy | Test cost | Test macro F1
---- | --- | ---: | ---: | ---: | --- | ---: | ---: | ---:
-All-class-0 baseline | full validation set | 0.973 | 57400 | 0.1973 | full test set | 0.9719 | 56100 | 0.1971
-Nearest-centroid classifier | full validation set | 0.8706 | 56884 | 0.2006 | full test set | 0.8823 | 54627 | 0.2096
-Gaussian Naive Bayes | full validation set | 0.7463 | 61507 | 0.1773 | full test set | 0.7483 | 60594 | 0.1746
-Random Forest | full validation set | 0.2632 | 68243 | 0.0868 | full test set | 0.2636 | 65629 | 0.0881
-Distance-weighted kNN (k=351) | stratified validation sample | 0.234 | 33736 | 0.1296 | stratified test sample | 0.2197 | 32324 | 0.1276
-LSTM sequence model | dashboard vehicle subset latest sequence | 0.1758 | 41396 | 0.1378 | dashboard vehicle subset latest sequence | 0.187 | 40886 | 0.1365
+Model | Train accuracy | Validation scope | Validation accuracy | Validation cost | Validation macro F1 | Test scope | Test accuracy | Test cost | Test macro F1
+--- | ---: | --- | ---: | ---: | ---: | --- | ---: | ---: | ---:
+All-class-0 baseline | 0.485 | full validation set | 0.973 | 57400 | 0.1973 | full test set | 0.9719 | 56100 | 0.1971
+Nearest-centroid classifier | 0.4988 | full validation set | 0.8706 | 56884 | 0.2006 | full test set | 0.8823 | 54627 | 0.2096
+Gaussian Naive Bayes | 0.5387 | full validation set | 0.7463 | 61507 | 0.1773 | full test set | 0.7483 | 60594 | 0.1746
+Random Forest | 0.5442 | full validation set | 0.2632 | 68243 | 0.0868 | full test set | 0.2636 | 65629 | 0.0881
+Distance-weighted kNN (k=351) | 1 | full validation set | 0.3177 | 57049 | 0.1101 | full test set | 0.3146 | 55516 | 0.1102
+LightGBM regularized | 0.5126 | full validation set | 0.8894 | 50070 | 0.1996 | full test set | 0.8761 | 49004 | 0.1947
+Logistic Regression (L2 balanced) | 0.5053 | full validation set | 0.844 | 51874 | 0.1921 | full test set | 0.8333 | 52144 | 0.1867
 
-Raw accuracy is included for the class presentation, but it is not the only useful metric. Because most examples are class 0, the all-class-0 baseline can look strong on accuracy while missing every failure. The nearest-centroid model is the main dashboard model because it keeps full-set validation/test accuracy above 75% while also lowering maintenance cost compared with the all-class-0 baseline.
+All models in the main comparison above are scored on the complete validation and test sets. Raw accuracy is included for the class presentation, but it is not the only useful metric. Because most examples are class 0, the all-class-0 baseline can look strong on accuracy while missing every failure. The recommended-model rule prioritizes the SCANIA cost among models that clear the 75% validation-accuracy target, while still reporting train accuracy to watch for overfitting.
+
+## Supplemental Sequence Experiment
+
+Model | Train accuracy | Validation scope | Validation accuracy | Validation cost | Validation macro F1 | Test scope | Test accuracy | Test cost | Test macro F1
+--- | ---: | --- | ---: | ---: | ---: | --- | ---: | ---: | ---:
+LSTM sequence model | - | dashboard vehicle subset latest sequence | 0.1758 | 41396 | 0.1378 | dashboard vehicle subset latest sequence | 0.187 | 40886 | 0.1365
+
+The LSTM result is kept as supplemental until it is rebuilt against the same complete validation/test scope as the tabular models. This avoids repeating the unfair-comparison problem called out by the TA.
 
 ## Hyperparameter Tuning
 
 - Feature scaling: z-score standardization is fit on training rows only.
 - Centroid alert threshold: grid searched from 0.00 to 1.00 in 0.01 steps against validation cost; selected threshold 0.21.
-- kNN experiment: k = 351 and distance weighting power = 2. This sweep is kept as validation evidence, not as the final selected model.
+- kNN experiment: k = 351 and distance weighting power = 2. The sweep uses a balanced validation sample for speed, but the selected kNN model is now scored on the complete validation/test sets in the main comparison table.
 - Temporal smoothing: the dashboard requires 3 repeated lower-risk packets before lowering an alert, while higher-risk packets update immediately.
 
 ### kNN k Sweep
 
 The sweep uses a stratified training/evaluation sample so it can run quickly in the project repo while still preserving all positive validation examples.
 
-The exported dashboard chart shows validation macro F1 by k. The high selected k is evidence that kNN is not the strongest final choice here; it is included to satisfy the hyperparameter comparison requirement.
+The exported dashboard chart shows validation macro F1 by k. The high selected k is evidence that kNN is not the strongest final choice here; it is included to satisfy the hyperparameter comparison requirement. The headline kNN cost and accuracy use the complete validation/test sets.
 
 k | Validation rows | Validation accuracy | Validation cost | Macro F1
 ---: | ---: | ---: | ---: | ---:

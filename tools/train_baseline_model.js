@@ -6,6 +6,7 @@ const DATASET_FILE = path.join(ROOT, 'ml', 'ml_dataset.json');
 const OUT_MODEL_FILE = path.join(ROOT, 'site', 'data', 'model_output.json');
 const OUT_REPORT_FILE = path.join(ROOT, 'ml', 'model_report.md');
 const LSTM_MODEL_FILE = path.join(ROOT, 'site', 'data', 'lstm_model_output.json');
+const TABULAR_MODEL_FILE = path.join(ROOT, 'site', 'data', 'tabular_model_output.json');
 
 function argValue(name) {
   const prefix = `--${name}=`;
@@ -610,12 +611,37 @@ function compactEvaluation(evaluation, scope) {
   };
 }
 
+function chooseRecommendedModel(modelComparison) {
+  const candidates = modelComparison.filter(item =>
+    item.type !== 'constant_classifier'
+    && item.validation?.scope === 'full validation set'
+    && item.test?.scope === 'full test set'
+  );
+  const accurateCandidates = candidates.filter(item => (item.validation?.accuracy ?? 0) >= 0.75);
+  const pool = accurateCandidates.length ? accurateCandidates : candidates;
+  return [...pool].sort((a, b) =>
+    (a.validation.totalCost - b.validation.totalCost)
+    || ((b.validation.accuracy ?? 0) - (a.validation.accuracy ?? 0))
+    || ((a.overfitCheck?.accuracyGap ?? 0) - (b.overfitCheck?.accuracyGap ?? 0))
+  )[0] || null;
+}
+
 function readLstmExperiment() {
   if (!fs.existsSync(LSTM_MODEL_FILE)) return null;
   try {
     return JSON.parse(fs.readFileSync(LSTM_MODEL_FILE, 'utf8'));
   } catch (error) {
     console.warn(`Could not read ${LSTM_MODEL_FILE}: ${error.message}`);
+    return null;
+  }
+}
+
+function readTabularModels() {
+  if (!fs.existsSync(TABULAR_MODEL_FILE)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(TABULAR_MODEL_FILE, 'utf8'));
+  } catch (error) {
+    console.warn(`Could not read ${TABULAR_MODEL_FILE}: ${error.message}`);
     return null;
   }
 }
@@ -655,10 +681,11 @@ function matrixMarkdown(matrix) {
 }
 
 function modelComparisonMarkdown(modelComparison) {
-  const header = 'Model | Validation scope | Validation accuracy | Validation cost | Validation macro F1 | Test scope | Test accuracy | Test cost | Test macro F1';
-  const divider = '--- | --- | ---: | ---: | ---: | --- | ---: | ---: | ---:';
+  const header = 'Model | Train accuracy | Validation scope | Validation accuracy | Validation cost | Validation macro F1 | Test scope | Test accuracy | Test cost | Test macro F1';
+  const divider = '--- | ---: | --- | ---: | ---: | ---: | --- | ---: | ---: | ---:';
   const rows = modelComparison.map(item => [
     item.name,
+    item.train?.accuracy ?? '-',
     item.validation.scope,
     item.validation.accuracy,
     item.validation.totalCost,
@@ -669,6 +696,11 @@ function modelComparisonMarkdown(modelComparison) {
     item.test.macroF1
   ].join(' | '));
   return [header, divider, ...rows].join('\n');
+}
+
+function supplementalComparisonMarkdown(modelComparison) {
+  if (!modelComparison.length) return 'No supplemental model experiments exported.';
+  return modelComparisonMarkdown(modelComparison);
 }
 
 function kTuningMarkdown(kResults) {
@@ -684,10 +716,10 @@ function kTuningMarkdown(kResults) {
   return [header, divider, ...rows].join('\n');
 }
 
-function writeReport(dataset, model, validation, test, topFeatures, alertThreshold, modelComparison, knnTuning) {
-  const lstmIncluded = modelComparison.some(item => item.type === 'lstm_sequence_classifier');
+function writeReport(dataset, model, validation, test, topFeatures, alertThreshold, modelComparison, knnTuning, supplementalComparison, recommendedModel) {
+  const lstmIncluded = supplementalComparison.some(item => item.type === 'lstm_sequence_classifier');
   const lstmRationale = lstmIncluded
-    ? '- LSTM sequence model: trained as a compact TensorFlow.js sequence experiment on rolling dashboard telemetry windows.'
+    ? '- LSTM sequence model: trained as a compact TensorFlow.js sequence experiment, but listed separately because its current exported scope is not the complete validation/test set.'
     : '- LSTM sequence model: prepared as the neural sequence-model next step because it can learn ordered readout patterns; the current Node dashboard keeps the centroid model as the reliable live model.';
   const report = `# Baseline ML Model Report
 
@@ -713,29 +745,36 @@ Non-zero class predictions below this confidence are converted to class 0. The t
 - Nearest-centroid classifier: used as a fast reportable baseline and for class-separation summaries.
 - Gaussian Naive Bayes: added as a second trained comparator. It is fast, but it makes a stronger feature-independence assumption.
 - Random Forest: added as a tree-based comparator because the TA recommended testing a tree method for nonlinear tabular patterns.
+- Logistic Regression and LightGBM: added as Python tabular comparators with regularization and full validation/test scoring.
 - Distance-weighted kNN: evaluated with a k sweep, but not selected because the best k was high and the stratified accuracy stayed low.
 ${lstmRationale}
 
-The current submission therefore uses the nearest-centroid classifier as the live dashboard model and compares it against multiple trained baselines.
+The current submission keeps nearest-centroid as the browser-live model and uses the fair full-set table to choose the best trained tabular model. Current recommended model by validation rule: ${recommendedModel?.name || 'not available'}.
 
 ## Model Comparison
 
 ${modelComparisonMarkdown(modelComparison)}
 
-Raw accuracy is included for the class presentation, but it is not the only useful metric. Because most examples are class 0, the all-class-0 baseline can look strong on accuracy while missing every failure. The nearest-centroid model is the main dashboard model because it keeps full-set validation/test accuracy above 75% while also lowering maintenance cost compared with the all-class-0 baseline.
+All models in the main comparison above are scored on the complete validation and test sets. Raw accuracy is included for the class presentation, but it is not the only useful metric. Because most examples are class 0, the all-class-0 baseline can look strong on accuracy while missing every failure. The recommended-model rule prioritizes the SCANIA cost among models that clear the 75% validation-accuracy target, while still reporting train accuracy to watch for overfitting.
+
+## Supplemental Sequence Experiment
+
+${supplementalComparisonMarkdown(supplementalComparison)}
+
+The LSTM result is kept as supplemental until it is rebuilt against the same complete validation/test scope as the tabular models. This avoids repeating the unfair-comparison problem called out by the TA.
 
 ## Hyperparameter Tuning
 
 - Feature scaling: z-score standardization is fit on training rows only.
 - Centroid alert threshold: grid searched from 0.00 to 1.00 in 0.01 steps against validation cost; selected threshold ${alertThreshold}.
-- kNN experiment: k = ${knnTuning.selectedK} and distance weighting power = ${knnTuning.distancePower}. This sweep is kept as validation evidence, not as the final selected model.
+- kNN experiment: k = ${knnTuning.selectedK} and distance weighting power = ${knnTuning.distancePower}. The sweep uses a balanced validation sample for speed, but the selected kNN model is now scored on the complete validation/test sets in the main comparison table.
 - Temporal smoothing: the dashboard requires ${3} repeated lower-risk packets before lowering an alert, while higher-risk packets update immediately.
 
 ### kNN k Sweep
 
 The sweep uses a stratified training/evaluation sample so it can run quickly in the project repo while still preserving all positive validation examples.
 
-The exported dashboard chart shows validation macro F1 by k. The high selected k is evidence that kNN is not the strongest final choice here; it is included to satisfy the hyperparameter comparison requirement.
+The exported dashboard chart shows validation macro F1 by k. The high selected k is evidence that kNN is not the strongest final choice here; it is included to satisfy the hyperparameter comparison requirement. The headline kNN cost and accuracy use the complete validation/test sets.
 
 ${kTuningMarkdown(knnTuning.results)}
 
@@ -796,14 +835,17 @@ function main() {
   const trainEval = evaluateRows(model, dataset.train, tunedThreshold.threshold);
   const validationEval = evaluateRows(model, dataset.validation, tunedThreshold.threshold);
   const testEval = evaluateRows(model, dataset.test, tunedThreshold.threshold);
+  const allZeroTrainEval = evaluateConstantClass(dataset.train, 0);
   const allZeroValidationEval = evaluateConstantClass(dataset.validation, 0);
   const allZeroTestEval = evaluateConstantClass(dataset.test, 0);
   const naiveBayesModel = fitGaussianNaiveBayes(dataset.train, featureCount);
   const naiveBayesThreshold = tuneAlertThreshold(naiveBayesModel, dataset.validation, predictGaussianNaiveBayes);
+  const naiveBayesTrainEval = evaluateRows(naiveBayesModel, dataset.train, naiveBayesThreshold.threshold, predictGaussianNaiveBayes);
   const naiveBayesValidationEval = evaluateRows(naiveBayesModel, dataset.validation, naiveBayesThreshold.threshold, predictGaussianNaiveBayes);
   const naiveBayesTestEval = evaluateRows(naiveBayesModel, dataset.test, naiveBayesThreshold.threshold, predictGaussianNaiveBayes);
   const randomForestTrainSample = stratifiedSample(dataset.train, sampleLimits(RF_TRAIN_POSITIVE_LIMIT, { 0: RF_TRAIN_CLASS0_LIMIT }));
   const randomForestModel = fitRandomForest(randomForestTrainSample, featureCount);
+  const randomForestTrainEval = evaluateRows(randomForestModel, randomForestTrainSample, 0, predictRandomForest);
   const randomForestValidationEval = evaluateRows(randomForestModel, dataset.validation, 0, predictRandomForest);
   const randomForestTestEval = evaluateRows(randomForestModel, dataset.test, 0, predictRandomForest);
   const knnTrainSample = stratifiedSample(dataset.train, sampleLimits(KNN_SWEEP_TRAIN_PER_CLASS));
@@ -823,24 +865,30 @@ function main() {
     distancePower: KNN_DISTANCE_POWER,
     exemplars: fitKnnExemplars(knnTrainSample, model.scaler)
   };
+  const selectedKnnTrainEval = summarizeEvaluation(
+    knnTrainSample,
+    knnTrainSample.map(row => predictKnn(selectedKnnModel, row.vector))
+  );
   const selectedKnnValidationEval = summarizeEvaluation(
-    knnValidationSample,
-    knnValidationSample.map(row => predictKnn(selectedKnnModel, row.vector))
+    dataset.validation,
+    dataset.validation.map(row => predictKnn(selectedKnnModel, row.vector))
   );
   const selectedKnnTestEval = summarizeEvaluation(
-    knnTestSample,
-    knnTestSample.map(row => predictKnn(selectedKnnModel, row.vector))
+    dataset.test,
+    dataset.test.map(row => predictKnn(selectedKnnModel, row.vector))
   );
   const modelComparison = [
     {
       name: 'All-class-0 baseline',
       type: 'constant_classifier',
+      train: compactEvaluation(allZeroTrainEval, 'full training sample'),
       validation: compactEvaluation(allZeroValidationEval, 'full validation set'),
       test: compactEvaluation(allZeroTestEval, 'full test set')
     },
     {
       name: 'Nearest-centroid classifier',
       type: 'nearest_centroid',
+      train: compactEvaluation(trainEval, 'full training sample'),
       validation: compactEvaluation(validationEval, 'full validation set'),
       test: compactEvaluation(testEval, 'full test set'),
       tunedHyperparameters: { alertThreshold: tunedThreshold.threshold }
@@ -848,6 +896,7 @@ function main() {
     {
       name: 'Gaussian Naive Bayes',
       type: 'gaussian_naive_bayes',
+      train: compactEvaluation(naiveBayesTrainEval, 'full training sample'),
       validation: compactEvaluation(naiveBayesValidationEval, 'full validation set'),
       test: compactEvaluation(naiveBayesTestEval, 'full test set'),
       tunedHyperparameters: { alertThreshold: naiveBayesThreshold.threshold }
@@ -855,6 +904,7 @@ function main() {
     {
       name: 'Random Forest',
       type: 'random_forest',
+      train: compactEvaluation(randomForestTrainEval, 'stratified training sample'),
       validation: compactEvaluation(randomForestValidationEval, 'full validation set'),
       test: compactEvaluation(randomForestTestEval, 'full test set'),
       tunedHyperparameters: randomForestModel.hyperparameters
@@ -862,15 +912,27 @@ function main() {
     {
       name: `Distance-weighted kNN (k=${bestK.k})`,
       type: 'distance_weighted_knn',
-      validation: compactEvaluation(selectedKnnValidationEval, 'stratified validation sample'),
-      test: compactEvaluation(selectedKnnTestEval, 'stratified test sample'),
+      train: compactEvaluation(selectedKnnTrainEval, 'stratified training sample'),
+      validation: compactEvaluation(selectedKnnValidationEval, 'full validation set'),
+      test: compactEvaluation(selectedKnnTestEval, 'full test set'),
       tunedHyperparameters: { k: bestK.k, distancePower: KNN_DISTANCE_POWER }
     }
   ];
-  const lstmExperiment = readLstmExperiment();
-  if (lstmExperiment?.comparisonEntry) {
-    modelComparison.push(lstmExperiment.comparisonEntry);
+  const tabularModels = readTabularModels();
+  if (tabularModels?.models?.length) {
+    for (const tabularModel of tabularModels.models) {
+      modelComparison.push({
+        ...tabularModel,
+        source: 'python_tabular_models'
+      });
+    }
   }
+  const lstmExperiment = readLstmExperiment();
+  const supplementalComparison = [];
+  if (lstmExperiment?.comparisonEntry) {
+    supplementalComparison.push(lstmExperiment.comparisonEntry);
+  }
+  const recommendedModel = chooseRecommendedModel(modelComparison);
   const knnTuning = {
     kValues: K_VALUES,
     selectedK: bestK.k,
@@ -897,7 +959,9 @@ function main() {
     },
     modelSelection: {
       selectedDashboardModel: 'nearest-centroid classifier',
-      rationale: `Nearest centroid is explainable, fast enough for live dashboard scoring, keeps validation/test accuracy above 75%, and beats the all-class-0 baseline on maintenance cost. kNN was evaluated with k=${bestK.k}, but it was not selected because the high k and low stratified accuracy were weaker evidence.`,
+      recommendedModel: recommendedModel?.name || 'nearest-centroid classifier',
+      recommendationRule: 'Choose the lowest full-validation SCANIA cost among models with validation accuracy >= 75%; report cost and accuracy together.',
+      rationale: `Nearest centroid remains the browser-live model because it is explainable and fast enough for interactive scoring. The fair comparison now evaluates each tabular model on the complete validation/test sets; current recommended model by the validation rule is ${recommendedModel?.name || 'nearest-centroid classifier'}. kNN was evaluated with k=${bestK.k}, but it is not selected because the high k and full-set metrics are weaker evidence.`,
       candidateModels: [
         {
           name: 'all-class-0 baseline',
@@ -931,20 +995,46 @@ function main() {
           purpose: 'hyperparameter sweep comparator for nearest labeled telemetry examples',
           tunedHyperparameters: { k: bestK.k, distancePower: KNN_DISTANCE_POWER },
           validationCost: selectedKnnValidationEval.totalCost,
-          validationScope: 'stratified validation sample',
+          validationScope: 'full validation set',
           testCost: selectedKnnTestEval.totalCost,
-          testScope: 'stratified test sample'
+          testScope: 'full test set'
+        },
+        ...(tabularModels?.models || []).map(item => ({
+          name: item.name,
+          purpose: item.type === 'lightgbm'
+            ? 'regularized boosted-tree comparator recommended by TA'
+            : 'regularized linear comparator recommended by TA',
+          tunedHyperparameters: item.tunedHyperparameters,
+          validationCost: item.validation.totalCost,
+          validationScope: item.validation.scope,
+          testCost: item.test.totalCost,
+          testScope: item.test.scope,
+          decisionMode: item.decisionMode
+        })),
+        {
+          name: 'LightGBM setup',
+          purpose: 'Python boosted-tree training script; run npm run train:tabular before npm run train:model to refresh results',
+          status: tabularModels?.models?.some(item => item.type === 'lightgbm')
+            ? 'trained and included in fair comparison'
+            : 'script added; install requirements-ml.txt and run npm run train:tabular'
         },
         {
           name: 'LSTM sequence model',
           purpose: 'next neural model for ordered telemetry sequences',
           status: lstmExperiment
-            ? 'trained as a TensorFlow.js sequence experiment on compact rolling dashboard telemetry windows'
+            ? 'trained as a TensorFlow.js sequence experiment; kept supplemental until full validation/test sequence evaluation is rebuilt'
             : 'prepared as the recommended sequence-model extension; run npm run train:lstm to generate the optional experiment'
         }
       ]
     },
     modelComparison,
+    supplementalModelComparison: supplementalComparison,
+    tabularModelExperiment: tabularModels ? {
+      generatedAt: tabularModels.generatedAt,
+      fairEvaluationRule: tabularModels.fairEvaluationRule,
+      selectionRule: tabularModels.selectionRule,
+      bestModel: tabularModels.bestModel
+    } : null,
     knnTuning,
     lstmExperiment: lstmExperiment ? {
       modelName: lstmExperiment.modelName,
@@ -1017,16 +1107,20 @@ function main() {
 
   fs.mkdirSync(path.dirname(OUT_MODEL_FILE), { recursive: true });
   fs.writeFileSync(OUT_MODEL_FILE, JSON.stringify(output));
-  writeReport(dataset, model, validationEval, testEval, topFeatures, tunedThreshold.threshold, modelComparison, knnTuning);
+  writeReport(dataset, model, validationEval, testEval, topFeatures, tunedThreshold.threshold, modelComparison, knnTuning, supplementalComparison, recommendedModel);
 
   console.log(`Wrote ${OUT_MODEL_FILE}`);
   console.log(`Wrote ${OUT_REPORT_FILE}`);
   console.log(`Tuned alert threshold: ${tunedThreshold.threshold} (validation cost ${tunedThreshold.totalCost})`);
   console.log(`Gaussian NB threshold: ${naiveBayesThreshold.threshold} (validation cost ${naiveBayesThreshold.totalCost})`);
   console.log(`Random Forest validation accuracy: ${randomForestValidationEval.accuracy}, cost: ${randomForestValidationEval.totalCost}`);
-  console.log(`Selected kNN k: ${bestK.k} by ${knnTuning.selectionMetric} (accuracy ${bestK.accuracy}, cost ${bestK.totalCost}, rows ${knnValidationSample.length})`);
+  console.log(`Selected kNN k: ${bestK.k} by ${knnTuning.selectionMetric} (sweep accuracy ${bestK.accuracy}, sweep cost ${bestK.totalCost}, sweep rows ${knnValidationSample.length}; full validation cost ${selectedKnnValidationEval.totalCost})`);
+  if (tabularModels?.models?.length) {
+    console.log(`Included Python tabular models: ${tabularModels.models.map(item => item.name).join(', ')}`);
+    console.log(`Recommended fair model: ${recommendedModel?.name || 'none'}`);
+  }
   if (lstmExperiment) {
-    console.log(`Included LSTM experiment: validation cost ${lstmExperiment.evaluation.validation.totalCost}, test cost ${lstmExperiment.evaluation.test.totalCost}`);
+    console.log(`Supplemental LSTM experiment: validation cost ${lstmExperiment.evaluation.validation.totalCost}, test cost ${lstmExperiment.evaluation.test.totalCost}`);
   }
   console.log(`Validation accuracy: ${validationEval.accuracy}, macro F1: ${validationEval.macroF1}, cost: ${validationEval.totalCost}, all-zero cost: ${validationEval.allZeroBaselineCost}`);
   console.log(`Test accuracy: ${testEval.accuracy}, macro F1: ${testEval.macroF1}, cost: ${testEval.totalCost}, all-zero cost: ${testEval.allZeroBaselineCost}`);

@@ -1,0 +1,227 @@
+{
+  "generatedAt": "2026-05-10T23:45:03",
+  "sourceDataset": "ml\\ml_dataset.json",
+  "fairEvaluationRule": "All exported tabular models are evaluated on the complete validation and test sets.",
+  "selectionRule": "Lowest full-validation SCANIA cost, with accuracy and train-validation gap reported alongside it.",
+  "models": [
+    {
+      "name": "LightGBM regularized",
+      "type": "lightgbm",
+      "decisionMode": "cost_margin_threshold >= 402.6306",
+      "decisionConfig": {
+        "mode": "cost_margin_threshold",
+        "threshold": 402.63055683855976
+      },
+      "train": {
+        "scope": "full training sample",
+        "rows": 41237,
+        "classCounts": {
+          "0": 20000,
+          "1": 8000,
+          "2": 6179,
+          "3": 3200,
+          "4": 3858
+        },
+        "accuracy": 0.5126,
+        "macroF1": 0.2087,
+        "totalCost": 5696640,
+        "allZeroBaselineCost": 6662700,
+        "costImprovementVsAllZero": 0.145
+      },
+      "validation": {
+        "scope": "full validation set",
+        "rows": 5046,
+        "classCounts": {
+          "0": 4910,
+          "1": 16,
+          "2": 14,
+          "3": 30,
+          "4": 76
+        },
+        "accuracy": 0.8894,
+        "macroF1": 0.1996,
+        "totalCost": 50070,
+        "allZeroBaselineCost": 57400,
+        "costImprovementVsAllZero": 0.1277
+      },
+      "test": {
+        "scope": "full test set",
+        "rows": 5045,
+        "classCounts": {
+          "0": 4903,
+          "1": 26,
+          "2": 15,
+          "3": 41,
+          "4": 60
+        },
+        "accuracy": 0.8761,
+        "macroF1": 0.1947,
+        "totalCost": 49004,
+        "allZeroBaselineCost": 56100,
+        "costImprovementVsAllZero": 0.1265
+      },
+      "overfitCheck": {
+        "accuracyGap": -0.3768,
+        "macroF1Gap": 0.0091,
+        "costGap": 5646570
+      },
+      "tunedHyperparameters": {
+        "class_weight": null,
+        "n_estimators": 360,
+        "learning_rate": 0.035,
+        "num_leaves": 31,
+        "max_depth": 6,
+        "min_child_samples": 90,
+        "subsample": 0.82,
+        "colsample_bytree": 0.82,
+        "reg_alpha": 0.15,
+        "reg_lambda": 4.0
+      },
+      "probabilityCalibration": "validation-prior correction for oversampled training data"
+    },
+    {
+      "name": "Logistic Regression (L2 balanced)",
+      "type": "logistic_regression",
+      "decisionMode": "cost_margin_threshold >= 437.6787",
+      "decisionConfig": {
+        "mode": "cost_margin_threshold",
+        "threshold": 437.67870311188784
+      },
+      "train": {
+        "scope": "full training sample",
+        "rows": 41237,
+        "classCounts": {
+          "0": 20000,
+          "1": 8000,
+          "2": 6179,
+          "3": 3200,
+          "4": 3858
+        },
+        "accuracy": 0.5053,
+        "macroF1": 0.1871,
+        "totalCost": 5660087,
+        "allZeroBaselineCost": 6662700,
+        "costImprovementVsAllZero": 0.1505
+      },
+      "validation": {
+        "scope": "full validation set",
+        "rows": 5046,
+        "classCounts": {
+          "0": 4910,
+          "1": 16,
+          "2": 14,
+          "3": 30,
+          "4": 76
+        },
+        "accuracy": 0.844,
+        "macroF1": 0.1921,
+        "totalCost": 51874,
+        "allZeroBaselineCost": 57400,
+        "costImprovementVsAllZero": 0.0963
+      },
+      "test": {
+        "scope": "full test set",
+        "rows": 5045,
+        "classCounts": {
+          "0": 4903,
+          "1": 26,
+          "2": 15,
+          "3": 41,
+          "4": 60
+        },
+        "accuracy": 0.8333,
+        "macroF1": 0.1867,
+        "totalCost": 52144,
+        "allZeroBaselineCost": 56100,
+        "costImprovementVsAllZero": 0.0705
+      },
+      "overfitCheck": {
+        "accuracyGap": -0.3387,
+        "macroF1Gap": -0.005,
+        "costGap": 5608213
+      },
+      "tunedHyperparameters": {
+        "C": 0.2,
+        "classWeight": "balanced",
+        "solver": "saga",
+        "regularization": "L2"
+      },
+      "probabilityCalibration": "validation-prior correction for oversampled training data"
+    }
+  ],
+  "bestModel": {
+    "name": "LightGBM regularized",
+    "type": "lightgbm",
+    "decisionMode": "cost_margin_threshold >= 402.6306",
+    "decisionConfig": {
+      "mode": "cost_margin_threshold",
+      "threshold": 402.63055683855976
+    },
+    "train": {
+      "scope": "full training sample",
+      "rows": 41237,
+      "classCounts": {
+        "0": 20000,
+        "1": 8000,
+        "2": 6179,
+        "3": 3200,
+        "4": 3858
+      },
+      "accuracy": 0.5126,
+      "macroF1": 0.2087,
+      "totalCost": 5696640,
+      "allZeroBaselineCost": 6662700,
+      "costImprovementVsAllZero": 0.145
+    },
+    "validation": {
+      "scope": "full validation set",
+      "rows": 5046,
+      "classCounts": {
+        "0": 4910,
+        "1": 16,
+        "2": 14,
+        "3": 30,
+        "4": 76
+      },
+      "accuracy": 0.8894,
+      "macroF1": 0.1996,
+      "totalCost": 50070,
+      "allZeroBaselineCost": 57400,
+      "costImprovementVsAllZero": 0.1277
+    },
+    "test": {
+      "scope": "full test set",
+      "rows": 5045,
+      "classCounts": {
+        "0": 4903,
+        "1": 26,
+        "2": 15,
+        "3": 41,
+        "4": 60
+      },
+      "accuracy": 0.8761,
+      "macroF1": 0.1947,
+      "totalCost": 49004,
+      "allZeroBaselineCost": 56100,
+      "costImprovementVsAllZero": 0.1265
+    },
+    "overfitCheck": {
+      "accuracyGap": -0.3768,
+      "macroF1Gap": 0.0091,
+      "costGap": 5646570
+    },
+    "tunedHyperparameters": {
+      "class_weight": null,
+      "n_estimators": 360,
+      "learning_rate": 0.035,
+      "num_leaves": 31,
+      "max_depth": 6,
+      "min_child_samples": 90,
+      "subsample": 0.82,
+      "colsample_bytree": 0.82,
+      "reg_alpha": 0.15,
+      "reg_lambda": 4.0
+    },
+    "probabilityCalibration": "validation-prior correction for oversampled training data"
+  }
+}
