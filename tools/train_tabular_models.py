@@ -1,5 +1,6 @@
 import json
 import math
+import os
 import warnings
 from pathlib import Path
 
@@ -20,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DATASET_FILE = ROOT / "ml" / "ml_dataset.json"
 OUT_FILE = ROOT / "site" / "data" / "tabular_model_output.json"
 CLASSES = np.array([0, 1, 2, 3, 4])
+MIN_OPERATING_ACCURACY = float(os.environ.get("MIN_OPERATING_ACCURACY", "0.75"))
 COST = np.array(
     [
         [0, 7, 8, 9, 10],
@@ -207,27 +209,23 @@ def choose_decision(estimator, x_val, y_val, adjustment=None):
     argmax_eval = evaluation(y_val, probabilities, "argmax", "full validation set")
     cost_eval = evaluation(y_val, probabilities, "expected_cost", "full validation set")
 
-    threshold_evals = []
+    candidates = [("argmax", argmax_eval), ("expected_cost", cost_eval)]
     for threshold in threshold_candidates(probabilities):
         decision = {"mode": "cost_margin_threshold", "threshold": float(threshold)}
-        threshold_evals.append((decision, evaluation(y_val, probabilities, decision, "full validation set")))
+        candidates.append((decision, evaluation(y_val, probabilities, decision, "full validation set")))
 
-    accurate_thresholds = [
-        item for item in threshold_evals if item[1]["accuracy"] >= 0.75
-    ]
-    if accurate_thresholds:
-        accurate_thresholds.sort(
-            key=lambda item: (
-                item[1]["totalCost"],
-                -item[1]["macroF1"],
-                -item[1]["accuracy"],
-            )
+    operating_candidates = [
+        item for item in candidates if item[1]["accuracy"] >= MIN_OPERATING_ACCURACY
+    ] or candidates
+
+    operating_candidates.sort(
+        key=lambda item: (
+            item[1]["totalCost"],
+            -item[1]["macroF1"],
+            -item[1]["accuracy"],
         )
-        return accurate_thresholds[0][0]
-
-    if cost_eval["accuracy"] >= 0.75 and cost_eval["totalCost"] <= argmax_eval["totalCost"]:
-        return "expected_cost"
-    return "argmax"
+    )
+    return operating_candidates[0][0]
 
 
 def train_models():
@@ -361,7 +359,7 @@ def train_models():
         "generatedAt": np.datetime64("now").astype(str),
         "sourceDataset": str(DATASET_FILE.relative_to(ROOT)),
         "fairEvaluationRule": "All exported tabular models are evaluated on the complete validation and test sets.",
-        "selectionRule": "Lowest full-validation SCANIA cost, with accuracy and train-validation gap reported alongside it for context.",
+        "selectionRule": f"Lowest full-validation SCANIA cost among operating points with validation accuracy >= {MIN_OPERATING_ACCURACY:.2f}; accuracy and train-validation gap are reported for context.",
         "models": models,
         "bestModel": models[0] if models else None,
     }

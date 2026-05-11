@@ -1,6 +1,6 @@
 # Baseline ML Model Report
 
-Generated: 2026-05-11T00:14:26.775Z
+Generated: 2026-05-11T01:10:28.869Z
 
 ## Model
 
@@ -40,7 +40,7 @@ Distance-weighted kNN (k=351) | 1 | full validation set | 0.3177 | 57049 | 0.110
 LightGBM regularized | 0.5126 | full validation set | 0.8894 | 50070 | 0.1996 | full test set | 0.8761 | 49004 | 0.1947
 Logistic Regression (L2 balanced) | 0.5053 | full validation set | 0.844 | 51874 | 0.1921 | full test set | 0.8333 | 52144 | 0.1867
 
-All models in the main comparison above are scored on the complete validation and test sets. Raw accuracy is included for context, but it is not the selection metric. Because most examples are class 0, the all-class-0 baseline can look strong on accuracy while missing every failure. The recommended-model rule prioritizes full-validation SCANIA cost and reports train/validation/test accuracy to watch for overfitting and class imbalance effects.
+All models in the main comparison above are scored on the complete validation and test sets. Raw accuracy is included for context, but it is not the only selection metric. Because most examples are class 0, the all-class-0 baseline can look strong on accuracy while missing every failure. The recommended-model rule prioritizes full-validation SCANIA cost among models with a reasonable validation-accuracy operating point, then reports train/validation/test accuracy to watch for overfitting and class imbalance effects.
 
 ## Supplemental Sequence Experiment
 

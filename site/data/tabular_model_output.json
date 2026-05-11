@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-05-11T00:12:18",
+  "generatedAt": "2026-05-11T01:04:41",
   "sourceDataset": "ml\\ml_dataset.json",
   "fairEvaluationRule": "All exported tabular models are evaluated on the complete validation and test sets.",
-  "selectionRule": "Lowest full-validation SCANIA cost, with accuracy and train-validation gap reported alongside it for context.",
+  "selectionRule": "Lowest full-validation SCANIA cost among operating points with validation accuracy >= 0.75; accuracy and train-validation gap are reported for context.",
   "models": [
     {
       "name": "LightGBM regularized",
