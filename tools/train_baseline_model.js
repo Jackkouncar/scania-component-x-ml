@@ -617,9 +617,7 @@ function chooseRecommendedModel(modelComparison) {
     && item.validation?.scope === 'full validation set'
     && item.test?.scope === 'full test set'
   );
-  const accurateCandidates = candidates.filter(item => (item.validation?.accuracy ?? 0) >= 0.75);
-  const pool = accurateCandidates.length ? accurateCandidates : candidates;
-  return [...pool].sort((a, b) =>
+  return [...candidates].sort((a, b) =>
     (a.validation.totalCost - b.validation.totalCost)
     || ((b.validation.accuracy ?? 0) - (a.validation.accuracy ?? 0))
     || ((a.overfitCheck?.accuracyGap ?? 0) - (b.overfitCheck?.accuracyGap ?? 0))
@@ -755,7 +753,7 @@ The current submission keeps nearest-centroid as the browser-live model and uses
 
 ${modelComparisonMarkdown(modelComparison)}
 
-All models in the main comparison above are scored on the complete validation and test sets. Raw accuracy is included for the class presentation, but it is not the only useful metric. Because most examples are class 0, the all-class-0 baseline can look strong on accuracy while missing every failure. The recommended-model rule prioritizes the SCANIA cost among models that clear the 75% validation-accuracy target, while still reporting train accuracy to watch for overfitting.
+All models in the main comparison above are scored on the complete validation and test sets. Raw accuracy is included for context, but it is not the selection metric. Because most examples are class 0, the all-class-0 baseline can look strong on accuracy while missing every failure. The recommended-model rule prioritizes full-validation SCANIA cost and reports train/validation/test accuracy to watch for overfitting and class imbalance effects.
 
 ## Supplemental Sequence Experiment
 
@@ -960,7 +958,7 @@ function main() {
     modelSelection: {
       selectedDashboardModel: 'nearest-centroid classifier',
       recommendedModel: recommendedModel?.name || 'nearest-centroid classifier',
-      recommendationRule: 'Choose the lowest full-validation SCANIA cost among models with validation accuracy >= 75%; report cost and accuracy together.',
+      recommendationRule: 'Choose the lowest full-validation SCANIA cost among comparable full-set models; report accuracy beside cost for context.',
       rationale: `Nearest centroid remains the browser-live model because it is explainable and fast enough for interactive scoring. The fair comparison now evaluates each tabular model on the complete validation/test sets; current recommended model by the validation rule is ${recommendedModel?.name || 'nearest-centroid classifier'}. kNN was evaluated with k=${bestK.k}, but it is not selected because the high k and full-set metrics are weaker evidence.`,
       candidateModels: [
         {

@@ -340,11 +340,6 @@ def train_models():
                 )
             )
 
-        accurate_lightgbm_entries = [
-            entry for entry in lightgbm_entries if entry["validation"]["accuracy"] >= 0.75
-        ]
-        if accurate_lightgbm_entries:
-            lightgbm_entries = accurate_lightgbm_entries
         lightgbm_entries.sort(
             key=lambda entry: (
                 entry["validation"]["totalCost"],
@@ -354,22 +349,19 @@ def train_models():
         )
         models.append(lightgbm_entries[0])
 
-    accurate_models = [entry for entry in models if entry["validation"]["accuracy"] >= 0.75]
-    sort_pool = accurate_models if accurate_models else models
-    sort_pool.sort(
+    models.sort(
         key=lambda entry: (
             entry["validation"]["totalCost"],
             -entry["validation"]["accuracy"],
             entry["overfitCheck"]["accuracyGap"],
         )
     )
-    models = sort_pool + [entry for entry in models if entry not in sort_pool]
 
     output = {
         "generatedAt": np.datetime64("now").astype(str),
         "sourceDataset": str(DATASET_FILE.relative_to(ROOT)),
         "fairEvaluationRule": "All exported tabular models are evaluated on the complete validation and test sets.",
-        "selectionRule": "Lowest full-validation SCANIA cost, with accuracy and train-validation gap reported alongside it.",
+        "selectionRule": "Lowest full-validation SCANIA cost, with accuracy and train-validation gap reported alongside it for context.",
         "models": models,
         "bestModel": models[0] if models else None,
     }
