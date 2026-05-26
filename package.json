@@ -1,18 +1,37 @@
 {
-  "name": "scania-component-x-ml",
-  "version": "1.0.0",
-  "private": false,
-  "description": "Machine learning code for SCANIA Component X predictive maintenance classification.",
+  "name": "scania-predictive-maintenance-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Class project scaffold for a SCANIA Component X predictive maintenance dashboard.",
   "scripts": {
+    "build:frontend": "node tools/build_frontend.js",
+    "build:db": "node tools/build_demo_database.js",
     "build:ml-data": "node tools/build_ml_dataset.js",
+    "restore:ml-data": "node tools/restore_ml_dataset.js",
+    "db:app": "node tools/inspect_sqlite_database.js --db=app",
+    "db:demo": "node tools/inspect_sqlite_database.js --db=demo",
+    "db:history": "node tools/inspect_sqlite_database.js --preset=history",
+    "db:list": "node tools/inspect_sqlite_database.js --db=app --list",
+    "db:notes:active": "node tools/inspect_sqlite_database.js --preset=notes-active",
+    "db:notes:deleted": "node tools/inspect_sqlite_database.js --preset=notes-deleted",
+    "db:users": "node tools/inspect_sqlite_database.js --preset=users",
+    "export:dashboard": "node tools/export_dashboard_data.js",
+    "query:db": "node tools/run_demo_queries.js",
+    "train:lstm:deep": "node tools/train_lstm_model.js --preset=deep",
+    "train:lstm": "node tools/train_lstm_model.js",
     "train:tabular": "node tools/run_tabular_models.js",
-    "train:model": "node tools/train_baseline_model.js",
     "train:model:accuracy": "node tools/train_baseline_model.js --k-selection=accuracy",
     "train:model:cost": "node tools/train_baseline_model.js --k-selection=cost",
-    "train:lstm": "node tools/train_lstm_model.js",
-    "train:lstm:deep": "node tools/train_lstm_model.js --preset=deep"
+    "train:model": "node tools/train_baseline_model.js",
+    "serve:static": "node tools/serve_site.js",
+    "serve": "node tools/serve_fullstack.js"
   },
   "dependencies": {
-    "@tensorflow/tfjs": "^4.22.0"
+    "@tensorflow/tfjs": "^4.22.0",
+    "esbuild": "^0.28.0",
+    "express": "^5.2.1",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "sql.js": "^1.14.1"
   }
 }

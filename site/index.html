@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Predictive Maintenance Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">SCANIA Component X</p>
+        <h1>Predictive Maintenance Dashboard</h1>
+        <p class="lede">Real readouts, real repair labels, anonymized component identity.</p>
+      </div>
+      <figure class="truck-photo">
+        <img src="assets/scania_truck.jpg" alt="Scania truck">
+        <figcaption>Truck image: Wikimedia Commons, CC BY-SA 4.0, EskoG-67.</figcaption>
+      </figure>
+    </header>
+
+    <main>
+      <section class="truth-band">
+        <div>
+          <h2>What This Data Actually Is</h2>
+          <p id="component-answer">Loading article findings...</p>
+        </div>
+        <div class="truth-grid" id="article-findings"></div>
+      </section>
+
+      <section class="summary-band">
+        <div class="metric">
+          <span>Dashboard vehicles</span>
+          <strong id="metric-vehicles">-</strong>
+        </div>
+        <div class="metric">
+          <span>Readout rows scanned</span>
+          <strong id="metric-readouts">-</strong>
+        </div>
+        <div class="metric">
+          <span>Counter features</span>
+          <strong id="metric-counters">-</strong>
+        </div>
+        <div class="metric">
+          <span>Histogram variables</span>
+          <strong id="metric-histograms">-</strong>
+        </div>
+      </section>
+
+      <section class="model-band">
+        <div>
+          <span>Recommended model</span>
+          <strong id="model-name">Loading...</strong>
+        </div>
+        <div>
+          <span>Validation cost</span>
+          <strong id="model-validation-cost">-</strong>
+        </div>
+        <div>
+          <span>Test cost</span>
+          <strong id="model-test-cost">-</strong>
+        </div>
+        <div>
+          <span>Top learned signal</span>
+          <strong id="model-top-feature">-</strong>
+        </div>
+      </section>
+
+      <section class="model-evidence-band">
+        <section class="model-evidence-panel">
+          <div class="chart-heading">
+            <h3>Model Comparison</h3>
+            <p>Full validation and test results from the trained project models.</p>
+          </div>
+          <div id="model-comparison-table" class="comparison-table"></div>
+        </section>
+      </section>
+
+      <section class="fullstack-band">
+        <div id="maintenance-notes-root"></div>
+      </section>
+
+      <section class="workspace">
+        <aside class="control-panel">
+          <h2>Vehicle Lookup</h2>
+          <label for="vehicle-search">Search vehicle ID</label>
+          <input id="vehicle-search" type="search" placeholder="Try 228, 8382, 3756">
+
+          <label for="split-filter">Dataset split</label>
+          <select id="split-filter">
+            <option value="all">All splits</option>
+            <option value="train">Train</option>
+            <option value="validation">Validation</option>
+            <option value="test">Test</option>
+          </select>
+
+          <label for="risk-filter">Risk class</label>
+          <select id="risk-filter">
+            <option value="all">All classes</option>
+            <option value="4">Class 4, most urgent</option>
+            <option value="3">Class 3</option>
+            <option value="2">Class 2</option>
+            <option value="1">Class 1</option>
+            <option value="0">Class 0</option>
+          </select>
+
+          <label for="counter-select">Trend feature</label>
+          <select id="counter-select"></select>
+
+          <label for="histogram-select">Histogram snapshot</label>
+          <select id="histogram-select"></select>
+
+          <label for="calendar-unit">Calendar display</label>
+          <select id="calendar-unit">
+            <option value="day">Jan 1, 2024 + time_step days</option>
+            <option value="hour">Jan 1, 2024 + time_step hours</option>
+            <option value="unit">Dataset units only</option>
+          </select>
+
+          <div class="notice">
+            <strong>Time note:</strong>
+            <span id="time-warning">Loading...</span>
+          </div>
+
+          <div class="vehicle-list" id="vehicle-list"></div>
+        </aside>
+
+        <section class="vehicle-panel">
+          <div class="vehicle-header">
+            <div>
+              <p class="eyebrow">Selected Vehicle</p>
+              <h2 id="vehicle-title">Loading...</h2>
+              <p id="vehicle-subtitle"></p>
+            </div>
+            <div class="risk-pill" id="risk-pill">Class -</div>
+          </div>
+
+          <div class="vehicle-facts" id="vehicle-facts"></div>
+
+          <section class="telemetry-console">
+            <div class="simulator-card">
+              <div>
+                <p class="eyebrow">Telemetry Simulator</p>
+                <h3>Send Real SCANIA Readouts Into The Predictor</h3>
+                <p id="simulator-caption">Replay a selected vehicle one readout at a time.</p>
+              </div>
+              <div class="simulator-actions">
+                <button id="reset-stream" type="button">Reset Stream</button>
+                <button id="send-telemetry" type="button">Send Next Telemetry</button>
+                <button id="toggle-autoplay" type="button">Auto Play</button>
+              </div>
+              <div class="simulator-jump-controls">
+                <label for="telemetry-mode">Telemetry mode</label>
+                <select id="telemetry-mode">
+                  <option value="replay" selected>Historical replay</option>
+                  <option value="live">Real-time insert</option>
+                </select>
+
+                <label for="playback-speed">Auto speed</label>
+                <select id="playback-speed">
+                  <option value="700">Steady</option>
+                  <option value="350" selected>Fast</option>
+                  <option value="150">Very fast</option>
+                </select>
+
+                <label for="prediction-mode">Prediction mode</label>
+                <select id="prediction-mode">
+                  <option value="lightgbm_cost" selected>LightGBM cost-sensitive</option>
+                  <option value="lightgbm_trend">LightGBM probability trend</option>
+                  <option value="lightgbm_accuracy">LightGBM 75% accuracy floor</option>
+                  <option value="lightgbm_expected">LightGBM expected-cost</option>
+                  <option value="knn">kNN live scorer</option>
+                  <option value="centroid">Nearest-centroid live scorer</option>
+                  <option value="baseline">Baseline timeline</option>
+                </select>
+
+                <label for="jump-time">Jump to time_step</label>
+                <div class="inline-control">
+                  <input id="jump-time" type="number" min="0" step="0.1" placeholder="421.4">
+                  <button id="jump-time-button" type="button">Jump</button>
+                </div>
+
+                <label for="jump-date">Jump to display date</label>
+                <div class="inline-control">
+                  <input id="jump-date" type="date">
+                  <button id="jump-date-button" type="button">Jump</button>
+                </div>
+
+                <button id="jump-failure-window" type="button" class="secondary-action">Jump Near Failure Window</button>
+              </div>
+              <div class="live-intake" id="live-intake" hidden>
+                <div class="live-intake-heading">
+                  <div>
+                    <p class="eyebrow">Real-Time Telemetry Intake</p>
+                    <h3>Insert New Record</h3>
+                  </div>
+                  <label for="live-time-step">
+                    <span>time_step</span>
+                    <input id="live-time-step" type="number" min="0" step="0.1">
+                  </label>
+                </div>
+                <div class="live-counter-grid" id="live-counter-form"></div>
+                <div class="live-intake-actions">
+                  <button id="seed-live-record" type="button" class="secondary-action">Use Latest Values</button>
+                  <button id="clear-live-records" type="button" class="secondary-action">Clear Live Records</button>
+                  <button id="insert-live-record" type="button">Insert Live Record</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="prediction-card" id="prediction-card">
+              <span>Component X Health</span>
+              <strong id="health-status">-</strong>
+              <p id="prediction-text">Waiting for telemetry.</p>
+            </div>
+
+            <div class="telemetry-table-wrap">
+              <h3>Latest Telemetry Packet</h3>
+              <div id="telemetry-table" class="telemetry-table"></div>
+            </div>
+
+            <div class="event-log-wrap">
+              <h3>Event Log</h3>
+              <div id="event-log" class="event-log"></div>
+            </div>
+
+            <div class="signal-note">
+              <h3>Signal Clarity</h3>
+              <p>These telemetry values are not separate parts failing together. They are anonymized input signals from the same vehicle readout. The health prediction is for one target only: Component X.</p>
+            </div>
+          </section>
+
+          <div class="chart-row">
+            <section class="chart-panel">
+              <div class="chart-heading">
+                <h3>Readout Timeline And Failure Marker</h3>
+                <p id="timeline-caption"></p>
+              </div>
+              <canvas id="timeline-chart" width="900" height="360"></canvas>
+            </section>
+            <section class="chart-panel">
+              <div class="chart-heading">
+                <h3>Latest Histogram Snapshot</h3>
+                <p id="histogram-caption"></p>
+              </div>
+              <canvas id="histogram-chart" width="520" height="360"></canvas>
+            </section>
+          </div>
+
+          <div class="detail-row">
+            <section>
+              <h3>Failure Interpretation</h3>
+              <div id="failure-explanation" class="explain-box"></div>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+    <script src="react_admin.bundle.js"></script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+node_modules
+.git
+database/*.sqlite
+database/*.sqlite3
+database/*.db
+submission
+github_ml_code
+2024-34-2
+2024-34-2.zip
+npm-debug.log*
+.env

@@ -715,23 +715,23 @@ function kTuningMarkdown(kResults) {
 }
 
 function writeReport(dataset, model, validation, test, topFeatures, alertThreshold, modelComparison, knnTuning, supplementalComparison, recommendedModel) {
-  const lstmIncluded = supplementalComparison.some(item => item.type === 'lstm_sequence_classifier');
+  const lstmIncluded = modelComparison.some(item => item.type === 'lstm_sequence_classifier');
   const lstmRationale = lstmIncluded
-    ? '- LSTM sequence model: trained as a compact TensorFlow.js sequence experiment, but listed separately because its current exported scope is not the complete validation/test set.'
-    : '- LSTM sequence model: prepared as the neural sequence-model next step because it can learn ordered readout patterns; the current Node dashboard keeps the centroid model as the reliable live model.';
+    ? '- LSTM sequence model: trained as a compact TensorFlow.js sequence experiment and included with its scope clearly marked because it is not the complete validation/test set.'
+    : '- LSTM sequence model: prepared as the neural sequence-model next step because it can learn ordered readout patterns; the dashboard keeps simpler live modes as comparison options beside the exported LightGBM scorer.';
   const report = `# Baseline ML Model Report
 
 Generated: ${new Date().toISOString()}
 
 ## Model
 
-Dashboard streaming model: nearest-centroid classifier.
+Dashboard streaming model: exported LightGBM browser scorer, with nearest-centroid, kNN, and baseline modes retained as comparison options.
 
-For each incoming telemetry packet, the dashboard compares the engineered feature vector against one learned centroid per risk class and predicts from the closest class pattern.
+For each incoming telemetry packet, the dashboard builds the same engineered feature vector used during tabular training, evaluates the exported LightGBM trees, converts class scores into probabilities, and applies the selected decision rule.
 
-The exported file also keeps the kNN sweep so the project can explain why kNN was tested but not chosen as the final dashboard model.
+The exported file also keeps the kNN sweep and nearest-centroid outputs so the project can explain why those models were tested but not chosen as the final recommendation.
 
-This is an explainable baseline model, not the final production model.
+The final recommendation is the LightGBM cost-sensitive operating point because it has the lowest complete-validation SCANIA cost.
 
 Alert threshold: ${alertThreshold}
 
@@ -742,24 +742,24 @@ Non-zero class predictions below this confidence are converted to class 0. The t
 - Naive all-class-0 baseline: included because the dataset is highly imbalanced and most vehicles are not near failure.
 - Nearest-centroid classifier: used as a fast reportable baseline and for class-separation summaries.
 - Gaussian Naive Bayes: added as a second trained comparator. It is fast, but it makes a stronger feature-independence assumption.
-- Random Forest: added as a tree-based comparator because the TA recommended testing a tree method for nonlinear tabular patterns.
+- Random Forest: added as a tree-based comparator for nonlinear tabular patterns.
 - Logistic Regression and LightGBM: added as Python tabular comparators with regularization and full validation/test scoring.
 - Distance-weighted kNN: evaluated with a k sweep, but not selected because the best k was high and the stratified accuracy stayed low.
 ${lstmRationale}
 
-The current submission keeps nearest-centroid as the browser-live model and uses the fair full-set table to choose the best trained tabular model. Current recommended model by validation rule: ${recommendedModel?.name || 'not available'}.
+The current submission uses full validation-set SCANIA cost to choose the recommended trained model. Current recommended model by validation rule: ${recommendedModel?.name || 'not available'}.
 
 ## Model Comparison
 
 ${modelComparisonMarkdown(modelComparison)}
 
-All models in the main comparison above are scored on the complete validation and test sets. Raw accuracy is included for context, but it is not the only selection metric. Because most examples are class 0, the all-class-0 baseline can look strong on accuracy while missing every failure. The recommended-model rule prioritizes full-validation SCANIA cost among models with a reasonable validation-accuracy operating point, then reports train/validation/test accuracy to watch for overfitting and class imbalance effects.
+The full-set tabular models are scored on the complete validation and test sets. The LSTM row, when present, shows its own scope in the table and is excluded from recommended-model selection until it is rebuilt on the identical full validation/test scope. Raw accuracy is included for context, but SCANIA cost drives model selection because most examples are class 0 and a high-accuracy all-class-0 model misses every failure.
 
 ## Supplemental Sequence Experiment
 
 ${supplementalComparisonMarkdown(supplementalComparison)}
 
-The LSTM result is kept as supplemental until it is rebuilt against the same complete validation/test scope as the tabular models. This avoids repeating the unfair-comparison problem called out by the TA.
+The LSTM result is kept as supplemental until it is rebuilt against the same complete validation/test scope as the tabular models. This avoids repeating the earlier unfair-comparison problem where some models were scored on sampled data and others were scored on full data.
 
 ## Hyperparameter Tuning
 
@@ -928,7 +928,13 @@ function main() {
   const lstmExperiment = readLstmExperiment();
   const supplementalComparison = [];
   if (lstmExperiment?.comparisonEntry) {
-    supplementalComparison.push(lstmExperiment.comparisonEntry);
+    const lstmComparisonEntry = {
+      ...lstmExperiment.comparisonEntry,
+      name: 'LSTM sequence model (subset)',
+      source: 'tensorflow_lstm_sequence_experiment'
+    };
+    modelComparison.push(lstmComparisonEntry);
+    supplementalComparison.push(lstmComparisonEntry);
   }
   const recommendedModel = chooseRecommendedModel(modelComparison);
   const knnTuning = {
@@ -949,17 +955,17 @@ function main() {
     generatedAt: new Date().toISOString(),
     modelName: 'nearest_centroid_component_x_v2',
     modelType: 'nearest_centroid',
-    status: 'baseline_ml_model',
-    description: 'Predicts Component X risk class from engineered telemetry counters, counter deltas/rates, relative time_step, and vehicle spec categories. The dashboard uses a nearest-centroid classifier with a validation-tuned alert threshold.',
+    status: 'baseline_and_comparison_model',
+    description: 'Contains the nearest-centroid baseline/comparison artifact plus kNN sweep results. The dashboard default and final recommendation use the exported LightGBM cost-sensitive model.',
     realTimeMode: {
       supported: true,
       behavior: 'The dashboard can append a newly entered telemetry record for the selected vehicle and immediately score it with the same feature pipeline used for historical replay.'
     },
     modelSelection: {
-      selectedDashboardModel: 'nearest-centroid classifier',
+      selectedDashboardModel: 'LightGBM cost-sensitive browser scorer by default; nearest-centroid retained as comparison mode',
       recommendedModel: recommendedModel?.name || 'nearest-centroid classifier',
-      recommendationRule: 'Choose the lowest full-validation SCANIA cost among comparable full-set models with a reasonable validation-accuracy operating point; report accuracy beside cost for context.',
-      rationale: `Nearest centroid remains the browser-live model because it is explainable and fast enough for interactive scoring. The fair comparison now evaluates each tabular model on the complete validation/test sets; current recommended model by the validation rule is ${recommendedModel?.name || 'nearest-centroid classifier'}. kNN was evaluated with k=${bestK.k}, but it is not selected because the high k and full-set metrics are weaker evidence.`,
+      recommendationRule: 'Choose the lowest full-validation SCANIA cost among comparable full-set models; report accuracy beside cost for context because the dataset is heavily imbalanced.',
+      rationale: `Nearest centroid is retained as an explainable comparison mode. The fair comparison now evaluates each tabular model on the complete validation/test sets; current recommended model by the validation rule is ${recommendedModel?.name || 'LightGBM cost-sensitive'}. kNN was evaluated with k=${bestK.k}, but it is not selected because the high k and full-set metrics are weaker evidence.`,
       candidateModels: [
         {
           name: 'all-class-0 baseline',
@@ -999,9 +1005,9 @@ function main() {
         },
         ...(tabularModels?.models || []).map(item => ({
           name: item.name,
-          purpose: item.type === 'lightgbm'
-            ? 'regularized boosted-tree comparator recommended by TA'
-            : 'regularized linear comparator recommended by TA',
+          purpose: String(item.type || '').startsWith('lightgbm')
+            ? 'regularized boosted-tree comparator with a cost-sensitive decision rule'
+            : 'regularized linear comparator with balanced class weights',
           tunedHyperparameters: item.tunedHyperparameters,
           validationCost: item.validation.totalCost,
           validationScope: item.validation.scope,
@@ -1046,13 +1052,15 @@ function main() {
     knn: {
       k: bestK.k,
       distancePower: KNN_DISTANCE_POWER,
+      exportedExemplarRows: selectedKnnModel.exemplars.length,
+      fullTrainingRows: dataset.train.length,
       selection: {
         metric: knnTuning.selectionMetric,
         validationRows: knnTuning.validationRows,
         selectedValidationAccuracy: bestK.accuracy,
         selectedValidationCost: bestK.totalCost
       },
-      exemplars: fitKnnExemplars(dataset.train, model.scaler)
+      exemplars: selectedKnnModel.exemplars
     },
     alertThreshold: tunedThreshold.threshold,
     thresholdPurpose: 'Conservative threshold tuned on validation cost. Non-zero risk predictions below this confidence are converted to class 0 to reduce false alarms.',

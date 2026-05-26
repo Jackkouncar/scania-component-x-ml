@@ -7,8 +7,8 @@ const DATA_DIR = path.join(ROOT, '2024-34-2', '2024-34-2', 'data');
 const OUT_DIR = path.join(ROOT, 'ml');
 const OUT_FILE = path.join(OUT_DIR, 'ml_dataset.json');
 
-const TRAIN_CLASS0_LIMIT = Number(process.env.TRAIN_CLASS0_LIMIT || 20000);
-const TRAIN_POSITIVE_LIMIT = Number(process.env.TRAIN_POSITIVE_LIMIT || 8000);
+const TRAIN_CLASS0_LIMIT = Number(process.env.TRAIN_CLASS0_LIMIT || 2000000);
+const TRAIN_POSITIVE_LIMIT = Number(process.env.TRAIN_POSITIVE_LIMIT || 20000);
 
 const SPLITS = {
   train: {

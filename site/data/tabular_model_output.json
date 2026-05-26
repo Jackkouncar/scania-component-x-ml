@@ -1,32 +1,32 @@
 {
-  "generatedAt": "2026-05-11T01:04:41",
+  "generatedAt": "2026-05-17T14:55:03",
   "sourceDataset": "ml\\ml_dataset.json",
   "fairEvaluationRule": "All exported tabular models are evaluated on the complete validation and test sets.",
-  "selectionRule": "Lowest full-validation SCANIA cost among operating points with validation accuracy >= 0.75; accuracy and train-validation gap are reported for context.",
+  "selectionRule": "Lowest full-validation SCANIA cost; accuracy and train-validation gap are reported for context because the data is heavily imbalanced.",
   "models": [
     {
-      "name": "LightGBM regularized",
+      "name": "LightGBM cost-sensitive",
       "type": "lightgbm",
-      "decisionMode": "cost_margin_threshold >= 402.6306",
+      "decisionMode": "cost_margin_threshold >= 166.4260",
       "decisionConfig": {
         "mode": "cost_margin_threshold",
-        "threshold": 402.63055683855976
+        "threshold": 166.42595731895298
       },
       "train": {
-        "scope": "full training sample",
-        "rows": 41237,
+        "scope": "training sample",
+        "rows": 1122452,
         "classCounts": {
-          "0": 20000,
-          "1": 8000,
+          "0": 1096712,
+          "1": 12503,
           "2": 6179,
           "3": 3200,
           "4": 3858
         },
-        "accuracy": 0.5126,
-        "macroF1": 0.2087,
-        "totalCost": 5696640,
-        "allZeroBaselineCost": 6662700,
-        "costImprovementVsAllZero": 0.145
+        "accuracy": 0.7327,
+        "macroF1": 0.2263,
+        "totalCost": 3144126,
+        "allZeroBaselineCost": 7563300,
+        "costImprovementVsAllZero": 0.5843
       },
       "validation": {
         "scope": "full validation set",
@@ -38,11 +38,11 @@
           "3": 30,
           "4": 76
         },
-        "accuracy": 0.8894,
-        "macroF1": 0.1996,
-        "totalCost": 50070,
+        "accuracy": 0.5438,
+        "macroF1": 0.1508,
+        "totalCost": 35599,
         "allZeroBaselineCost": 57400,
-        "costImprovementVsAllZero": 0.1277
+        "costImprovementVsAllZero": 0.3798
       },
       "test": {
         "scope": "full test set",
@@ -54,41 +54,274 @@
           "3": 41,
           "4": 60
         },
-        "accuracy": 0.8761,
-        "macroF1": 0.1947,
-        "totalCost": 49004,
+        "accuracy": 0.6573,
+        "macroF1": 0.1647,
+        "totalCost": 47930,
         "allZeroBaselineCost": 56100,
-        "costImprovementVsAllZero": 0.1265
+        "costImprovementVsAllZero": 0.1456
       },
       "overfitCheck": {
-        "accuracyGap": -0.3768,
-        "macroF1Gap": 0.0091,
-        "costGap": 5646570
+        "accuracyGap": 0.1889,
+        "macroF1Gap": 0.0755,
+        "costGap": 3108527
       },
       "tunedHyperparameters": {
-        "class_weight": null,
-        "n_estimators": 360,
-        "learning_rate": 0.035,
-        "num_leaves": 31,
-        "max_depth": 6,
-        "min_child_samples": 90,
-        "subsample": 0.82,
-        "colsample_bytree": 0.82,
-        "reg_alpha": 0.15,
-        "reg_lambda": 4.0
+        "objective": "multiclass",
+        "num_class": 5,
+        "class_weight": "balanced",
+        "n_estimators": 500,
+        "learning_rate": 0.05,
+        "num_leaves": 63,
+        "min_child_samples": 5,
+        "random_state": 42,
+        "n_jobs": -1,
+        "verbose": -1,
+        "decision_tuning": "validation sweep over expected-cost savings margin",
+        "decision_threshold_steps": 2001
       },
-      "probabilityCalibration": "validation-prior correction for oversampled training data"
+      "probabilityCalibration": "none",
+      "trainingSeconds": 58.15
+    },
+    {
+      "name": "LightGBM 75% accuracy floor",
+      "type": "lightgbm_accuracy_floor",
+      "decisionMode": "cost_margin_threshold >= 237.4836",
+      "decisionConfig": {
+        "mode": "cost_margin_threshold",
+        "threshold": 237.48362994559022
+      },
+      "train": {
+        "scope": "training sample",
+        "rows": 1122452,
+        "classCounts": {
+          "0": 1096712,
+          "1": 12503,
+          "2": 6179,
+          "3": 3200,
+          "4": 3858
+        },
+        "accuracy": 0.8685,
+        "macroF1": 0.2488,
+        "totalCost": 3186071,
+        "allZeroBaselineCost": 7563300,
+        "costImprovementVsAllZero": 0.5787
+      },
+      "validation": {
+        "scope": "full validation set",
+        "rows": 5046,
+        "classCounts": {
+          "0": 4910,
+          "1": 16,
+          "2": 14,
+          "3": 30,
+          "4": 76
+        },
+        "accuracy": 0.7501,
+        "macroF1": 0.1822,
+        "totalCost": 44668,
+        "allZeroBaselineCost": 57400,
+        "costImprovementVsAllZero": 0.2218
+      },
+      "test": {
+        "scope": "full test set",
+        "rows": 5045,
+        "classCounts": {
+          "0": 4903,
+          "1": 26,
+          "2": 15,
+          "3": 41,
+          "4": 60
+        },
+        "accuracy": 0.8527,
+        "macroF1": 0.1907,
+        "totalCost": 50094,
+        "allZeroBaselineCost": 56100,
+        "costImprovementVsAllZero": 0.1071
+      },
+      "overfitCheck": {
+        "accuracyGap": 0.1184,
+        "macroF1Gap": 0.0666,
+        "costGap": 3141403
+      },
+      "tunedHyperparameters": {
+        "objective": "multiclass",
+        "num_class": 5,
+        "class_weight": "balanced",
+        "n_estimators": 500,
+        "learning_rate": 0.05,
+        "num_leaves": 63,
+        "min_child_samples": 5,
+        "random_state": 42,
+        "n_jobs": -1,
+        "verbose": -1,
+        "decision_tuning": "validation sweep with a minimum 75% validation accuracy constraint",
+        "decision_threshold_steps": 2001
+      },
+      "probabilityCalibration": "none",
+      "trainingSeconds": 58.15
+    },
+    {
+      "name": "LightGBM balanced expected-cost",
+      "type": "lightgbm_balanced_expected_cost",
+      "decisionMode": "expected_cost",
+      "decisionConfig": {
+        "mode": "expected_cost"
+      },
+      "train": {
+        "scope": "training sample",
+        "rows": 1122452,
+        "classCounts": {
+          "0": 1096712,
+          "1": 12503,
+          "2": 6179,
+          "3": 3200,
+          "4": 3858
+        },
+        "accuracy": 0.24,
+        "macroF1": 0.0878,
+        "totalCost": 8214033,
+        "allZeroBaselineCost": 7563300,
+        "costImprovementVsAllZero": -0.086
+      },
+      "validation": {
+        "scope": "full validation set",
+        "rows": 5046,
+        "classCounts": {
+          "0": 4910,
+          "1": 16,
+          "2": 14,
+          "3": 30,
+          "4": 76
+        },
+        "accuracy": 0.1056,
+        "macroF1": 0.0409,
+        "totalCost": 45063,
+        "allZeroBaselineCost": 57400,
+        "costImprovementVsAllZero": 0.2149
+      },
+      "test": {
+        "scope": "full test set",
+        "rows": 5045,
+        "classCounts": {
+          "0": 4903,
+          "1": 26,
+          "2": 15,
+          "3": 41,
+          "4": 60
+        },
+        "accuracy": 0.1255,
+        "macroF1": 0.0505,
+        "totalCost": 44896,
+        "allZeroBaselineCost": 56100,
+        "costImprovementVsAllZero": 0.1997
+      },
+      "overfitCheck": {
+        "accuracyGap": 0.1344,
+        "macroF1Gap": 0.0469,
+        "costGap": 8168970
+      },
+      "tunedHyperparameters": {
+        "objective": "multiclass",
+        "num_class": 5,
+        "n_estimators": 500,
+        "learning_rate": 0.05,
+        "num_leaves": 63,
+        "min_child_samples": 100,
+        "random_state": 42,
+        "n_jobs": -1,
+        "verbose": -1,
+        "sample_weight": "balanced class weights",
+        "decision_rule": "predict_proba multiplied by SCANIA cost matrix",
+        "feature_engineering": "project engineered 118-feature vector"
+      },
+      "probabilityCalibration": "none",
+      "trainingSeconds": 56.26
+    },
+    {
+      "name": "LightGBM expected-cost",
+      "type": "lightgbm_expected_cost",
+      "decisionMode": "expected_cost",
+      "decisionConfig": {
+        "mode": "expected_cost"
+      },
+      "train": {
+        "scope": "training sample",
+        "rows": 1122452,
+        "classCounts": {
+          "0": 1096712,
+          "1": 12503,
+          "2": 6179,
+          "3": 3200,
+          "4": 3858
+        },
+        "accuracy": 0.2319,
+        "macroF1": 0.0854,
+        "totalCost": 8293514,
+        "allZeroBaselineCost": 7563300,
+        "costImprovementVsAllZero": -0.0965
+      },
+      "validation": {
+        "scope": "full validation set",
+        "rows": 5046,
+        "classCounts": {
+          "0": 4910,
+          "1": 16,
+          "2": 14,
+          "3": 30,
+          "4": 76
+        },
+        "accuracy": 0.1021,
+        "macroF1": 0.0396,
+        "totalCost": 45519,
+        "allZeroBaselineCost": 57400,
+        "costImprovementVsAllZero": 0.207
+      },
+      "test": {
+        "scope": "full test set",
+        "rows": 5045,
+        "classCounts": {
+          "0": 4903,
+          "1": 26,
+          "2": 15,
+          "3": 41,
+          "4": 60
+        },
+        "accuracy": 0.1247,
+        "macroF1": 0.0472,
+        "totalCost": 44768,
+        "allZeroBaselineCost": 56100,
+        "costImprovementVsAllZero": 0.202
+      },
+      "overfitCheck": {
+        "accuracyGap": 0.1298,
+        "macroF1Gap": 0.0458,
+        "costGap": 8247995
+      },
+      "tunedHyperparameters": {
+        "objective": "multiclass",
+        "num_class": 5,
+        "class_weight": "balanced",
+        "n_estimators": 500,
+        "learning_rate": 0.05,
+        "num_leaves": 63,
+        "min_child_samples": 5,
+        "random_state": 42,
+        "n_jobs": -1,
+        "verbose": -1
+      },
+      "probabilityCalibration": "none",
+      "trainingSeconds": 58.15
     },
     {
       "name": "Logistic Regression (L2 balanced)",
       "type": "logistic_regression",
-      "decisionMode": "cost_margin_threshold >= 437.6787",
+      "decisionMode": "cost_margin_threshold >= 277.4674",
       "decisionConfig": {
         "mode": "cost_margin_threshold",
-        "threshold": 437.67870311188784
+        "threshold": 277.46744887991764
       },
       "train": {
-        "scope": "full training sample",
+        "scope": "training sample",
         "rows": 41237,
         "classCounts": {
           "0": 20000,
@@ -97,11 +330,11 @@
           "3": 3200,
           "4": 3858
         },
-        "accuracy": 0.5053,
-        "macroF1": 0.1871,
-        "totalCost": 5660087,
+        "accuracy": 0.4991,
+        "macroF1": 0.2199,
+        "totalCost": 1594309,
         "allZeroBaselineCost": 6662700,
-        "costImprovementVsAllZero": 0.1505
+        "costImprovementVsAllZero": 0.7607
       },
       "validation": {
         "scope": "full validation set",
@@ -113,11 +346,11 @@
           "3": 30,
           "4": 76
         },
-        "accuracy": 0.844,
-        "macroF1": 0.1921,
-        "totalCost": 51874,
+        "accuracy": 0.2418,
+        "macroF1": 0.0825,
+        "totalCost": 48292,
         "allZeroBaselineCost": 57400,
-        "costImprovementVsAllZero": 0.0963
+        "costImprovementVsAllZero": 0.1587
       },
       "test": {
         "scope": "full test set",
@@ -129,16 +362,16 @@
           "3": 41,
           "4": 60
         },
-        "accuracy": 0.8333,
-        "macroF1": 0.1867,
-        "totalCost": 52144,
+        "accuracy": 0.2115,
+        "macroF1": 0.0733,
+        "totalCost": 49767,
         "allZeroBaselineCost": 56100,
-        "costImprovementVsAllZero": 0.0705
+        "costImprovementVsAllZero": 0.1129
       },
       "overfitCheck": {
-        "accuracyGap": -0.3387,
-        "macroF1Gap": -0.005,
-        "costGap": 5608213
+        "accuracyGap": 0.2573,
+        "macroF1Gap": 0.1374,
+        "costGap": 1546017
       },
       "tunedHyperparameters": {
         "C": 0.2,
@@ -146,32 +379,33 @@
         "solver": "saga",
         "regularization": "L2"
       },
-      "probabilityCalibration": "validation-prior correction for oversampled training data"
+      "probabilityCalibration": "none",
+      "trainingSeconds": 43.39
     }
   ],
   "bestModel": {
-    "name": "LightGBM regularized",
+    "name": "LightGBM cost-sensitive",
     "type": "lightgbm",
-    "decisionMode": "cost_margin_threshold >= 402.6306",
+    "decisionMode": "cost_margin_threshold >= 166.4260",
     "decisionConfig": {
       "mode": "cost_margin_threshold",
-      "threshold": 402.63055683855976
+      "threshold": 166.42595731895298
     },
     "train": {
-      "scope": "full training sample",
-      "rows": 41237,
+      "scope": "training sample",
+      "rows": 1122452,
       "classCounts": {
-        "0": 20000,
-        "1": 8000,
+        "0": 1096712,
+        "1": 12503,
         "2": 6179,
         "3": 3200,
         "4": 3858
       },
-      "accuracy": 0.5126,
-      "macroF1": 0.2087,
-      "totalCost": 5696640,
-      "allZeroBaselineCost": 6662700,
-      "costImprovementVsAllZero": 0.145
+      "accuracy": 0.7327,
+      "macroF1": 0.2263,
+      "totalCost": 3144126,
+      "allZeroBaselineCost": 7563300,
+      "costImprovementVsAllZero": 0.5843
     },
     "validation": {
       "scope": "full validation set",
@@ -183,11 +417,11 @@
         "3": 30,
         "4": 76
       },
-      "accuracy": 0.8894,
-      "macroF1": 0.1996,
-      "totalCost": 50070,
+      "accuracy": 0.5438,
+      "macroF1": 0.1508,
+      "totalCost": 35599,
       "allZeroBaselineCost": 57400,
-      "costImprovementVsAllZero": 0.1277
+      "costImprovementVsAllZero": 0.3798
     },
     "test": {
       "scope": "full test set",
@@ -199,29 +433,32 @@
         "3": 41,
         "4": 60
       },
-      "accuracy": 0.8761,
-      "macroF1": 0.1947,
-      "totalCost": 49004,
+      "accuracy": 0.6573,
+      "macroF1": 0.1647,
+      "totalCost": 47930,
       "allZeroBaselineCost": 56100,
-      "costImprovementVsAllZero": 0.1265
+      "costImprovementVsAllZero": 0.1456
     },
     "overfitCheck": {
-      "accuracyGap": -0.3768,
-      "macroF1Gap": 0.0091,
-      "costGap": 5646570
+      "accuracyGap": 0.1889,
+      "macroF1Gap": 0.0755,
+      "costGap": 3108527
     },
     "tunedHyperparameters": {
-      "class_weight": null,
-      "n_estimators": 360,
-      "learning_rate": 0.035,
-      "num_leaves": 31,
-      "max_depth": 6,
-      "min_child_samples": 90,
-      "subsample": 0.82,
-      "colsample_bytree": 0.82,
-      "reg_alpha": 0.15,
-      "reg_lambda": 4.0
+      "objective": "multiclass",
+      "num_class": 5,
+      "class_weight": "balanced",
+      "n_estimators": 500,
+      "learning_rate": 0.05,
+      "num_leaves": 63,
+      "min_child_samples": 5,
+      "random_state": 42,
+      "n_jobs": -1,
+      "verbose": -1,
+      "decision_tuning": "validation sweep over expected-cost savings margin",
+      "decision_threshold_steps": 2001
     },
-    "probabilityCalibration": "validation-prior correction for oversampled training data"
+    "probabilityCalibration": "none",
+    "trainingSeconds": 58.15
   }
 }
