@@ -48,6 +48,8 @@ Then open:
 http://localhost:5173
 ```
 
+On the first startup, allow a short wait while the API seeds the SQLite database from the included dashboard telemetry export. Later starts reuse the persisted database.
+
 ## Telemetry Demo
 
 The webapp simulates telemetry by replaying real SCANIA vehicle readouts one packet at a time.
